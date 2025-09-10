@@ -67,9 +67,7 @@ class DataNormalizer:
             normalized_df = pd.DataFrame(
                 {
                     "Ticker": df["<TICKER>"],
-                    "Date": pd.to_datetime(df["<DATE>"], format="%Y%m%d").dt.strftime(
-                        "%Y-%m-%d"
-                    ),
+                    "Date": pd.to_datetime(df["<DATE>"], format="%Y%m%d"),
                     "Open": df["<OPEN>"],
                     "High": df["<HIGH>"],
                     "Low": df["<LOW>"],
@@ -93,9 +91,6 @@ class DataNormalizer:
         if df.empty:
             return df
 
-        # Convert Date column to datetime for comparison
-        df["Date"] = pd.to_datetime(df["Date"])
-
         # Apply start date filter
         if self._start_date:
             start_date = pd.to_datetime(self._start_date)
@@ -105,9 +100,6 @@ class DataNormalizer:
         if self._end_date:
             end_date = pd.to_datetime(self._end_date)
             df = df[df["Date"] <= end_date]
-
-        # Convert back to string format
-        df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
         return df
 

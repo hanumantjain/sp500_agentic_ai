@@ -1,25 +1,35 @@
-# Backend
+Backend
+====================================
 
-## Create a virtual environment and Install dependancies
+What this directory contains
+- Shell runner for the data pipeline
+- Environment setup and dependency lock-in via `requirements.txt`
+- Entry point for running normalization from the command line
 
-### Create a virtual environment
+Setup
+------------------------------------
+Create and activate a virtual environment, then install dependencies:
 
+```bash
 python -m venv sp500
+```
 
-### Activate the virtual environment
-
+```bash
 source sp500/bin/activate
+```
 
-### Install packages
-
+```bash
 pip install -r requirements.txt
+```
 
+Run the data pipeline
+------------------------------------
+See detailed usage in the data pipeline README:
 
-### Process last 3 years of data
-./run_data_normalization.sh "2021-01-01" "2023-12-31"
+- [data_pipeline/README.md](data_pipeline/README.md)
 
-### Process specific year
-./run_data_normalization.sh "2023-01-01" "2023-12-31"
-
-### Process all data (no filtering)
-./run_data_normalization.sh
+Notes
+------------------------------------
+- Input directory: `../data/sp500_ohcl`
+- Output directory: `../data/normalised_data`
+- Full pipeline documentation: [data_pipeline/README.md](data_pipeline/README.md)

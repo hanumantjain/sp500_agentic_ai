@@ -44,14 +44,14 @@ END_DATE="$2"
 python -c "
 import sys
 sys.path.append('data_pipeline')
-from data_normalisation.raw_data_normalisation import DataPipeline
+from data_normalisation.raw_data_normalisation import DataPipelinenormalization
 
 try:
     # Create pipeline instance with date filtering
     start_date = '$START_DATE' if '$START_DATE' else None
     end_date = '$END_DATE' if '$END_DATE' else None
     
-    pipeline = DataPipeline(start_date=start_date, end_date=end_date)
+    pipeline = DataPipelinenormalization(start_date=start_date, end_date=end_date)
     
     # Run complete pipeline
     results = pipeline.run_complete_pipeline()

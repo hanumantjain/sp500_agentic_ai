@@ -200,7 +200,7 @@ class DataNormalizer:
         return output_file
 
 
-class DataPipeline:
+class DataPipelinenormalization:
     """Complete data pipeline that runs both file extraction and normalization."""
 
     def __init__(

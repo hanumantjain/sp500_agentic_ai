@@ -1,3 +1,8 @@
 dbt-tidb
 pandas
 numpy
+PyMySQL==1.1.0
+SQLAlchemy==2.0.20
+typing_extensions==4.7.1
+python-dotenv==1.0.0y 
+alembic==1.12.1

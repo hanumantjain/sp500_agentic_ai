@@ -200,7 +200,7 @@ class SECFactsExtractor:
     def save_to_database(
         self,
         normalized_records: List[tuple],
-        batch_size: int = 1000,
+        batch_size: int = 10000,
         max_retries: int = 3,
     ):
         """

@@ -71,9 +71,7 @@ def process_json_file_to_database(json_file_path: str):
         return False
 
     # Initialize extractor
-    json_directory = json_file.parent
-    db_config = Config()
-    extractor = SECFactsExtractor(str(json_directory), db_config)
+    extractor = SECFactsExtractor(json_directory="", db_config=Config())
 
     print(f"Processing JSON file: {json_file.name}")
 

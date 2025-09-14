@@ -74,13 +74,13 @@ try:
     
     print('Step 1: Loading CIK values from S&P 500 CSV...')
     cik_values = extractor.load_cik_values()
-    print(f'✓ Loaded {len(cik_values)} CIK values')
+    print(f'Loaded {len(cik_values)} CIK values')
     print('')
     
     print('Step 2: Copying matched CIK files...')
     copied_files = extractor.copy_matched_files()
-    print(f'✓ Copy operation completed')
-    print(f'✓ Copied {len(copied_files)} CIK files to company_facts directory')
+    print(f'Copy operation completed')
+    print(f'Copied {len(copied_files)} CIK files to company_facts directory')
     print('')
     
     print('CIK File Copy Pipeline completed successfully!')

@@ -15,7 +15,7 @@ class BronzeSecFacts(Base):
     taxonomy = Column(String(64), nullable=False)
     tag = Column(String(256), nullable=False)
     unit = Column(String(32), nullable=False)
-    val = Column(Numeric(precision=20, scale=2), nullable=False)
+    val = Column(Numeric(precision=30, scale=2), nullable=False)
     fy = Column(Numeric, nullable=True)
     fp = Column(String(8), nullable=True)
     start_date = Column(Date, nullable=True)

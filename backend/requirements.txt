@@ -1,8 +1,13 @@
-dbt-tidb
+# Use Airflow's official constraints for reproducible install (Airflow 2.11.0, Python 3.12)
+-c https://raw.githubusercontent.com/apache/airflow/constraints-2.11.0/constraints-3.12.txt
+
+# Core Airflow
+apache-airflow==2.11.0
+
+# Project dependencies (let Airflow constraints resolve compatible versions)
 pandas
 numpy
-PyMySQL==1.1.0
-SQLAlchemy==2.0.20
-typing_extensions==4.7.1
-python-dotenv==1.0.0y 
-alembic==1.12.1
+PyMySQL==1.1.1
+SQLAlchemy>=1.4.36,<2.0
+python-dotenv==1.1.0
+alembic>=1.13.1

@@ -81,6 +81,3 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-.venv
-.DS_Store

@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form, UploadFile, File
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from db import run_query
 from config import Config
+from typing import List, Optional
 
 app = FastAPI()
 
@@ -33,24 +34,47 @@ async def hello():
     return {"reply": "hello"}
 
 @app.post("/ask")
-async def ask(body: AskRequest):
-    question = body.question
-    if not question:
-        raise HTTPException(status_code=400, detail="Question is required")
+async def ask(
+    question: str = Form(...),
+    files: List[UploadFile] = File(default=[])
+):
+    if not question.strip() and not files:
+        raise HTTPException(status_code=400, detail="Question or files are required")
+
+    # Process uploaded files
+    file_contents = []
+    for file in files:
+        try:
+            content = await file.read()
+            # Try to decode as text if possible
+            try:
+                text_content = content.decode('utf-8')
+                file_contents.append(f"File: {file.filename}\n{text_content}")
+            except UnicodeDecodeError:
+                # For binary files, just note the filename and type
+                file_contents.append(f"File: {file.filename} (binary file, {file.content_type})")
+        except Exception as e:
+            file_contents.append(f"File: {file.filename} (error reading: {str(e)})")
+    
+    # Combine question with file contents
+    full_question = question
+    if file_contents:
+        full_question += "\n\nAttached files:\n" + "\n\n".join(file_contents)
 
     # Graceful fallback: if no API key, return simple reply to avoid 500s in dev
     if not openai_key:
-        return {"reply": "hello", "note": "OPENAI_API_KEY not set; returning mock reply"}
+        return {"reply": f"Received: {question} with {len(files)} files", "note": "OPENAI_API_KEY not set; returning mock reply"}
 
     prompt = f"""
     You are a SQL expert. Convert this question into a MySQL/TiDB SQL query. Only return the SQL.
+    Consider any attached file contents when generating the query.
 
-    Question: {question}
+    Question: {full_question}
     """
     try:
         if client is None:
             # Should be caught earlier, but double-guard
-            return {"reply": "hello", "note": "OPENAI_API_KEY not set; returning mock reply"}
+            return {"reply": f"Received: {question} with {len(files)} files", "note": "OPENAI_API_KEY not set; returning mock reply"}
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -71,7 +95,7 @@ async def ask(body: AskRequest):
         sql_query = sql_query.strip()
     except Exception as e:
         # Return graceful response instead of 500 to keep client UX smooth
-        return {"reply": "hello", "note": f"OpenAI error: {str(e)}"}
+        return {"reply": f"Received: {question} with {len(files)} files", "note": f"OpenAI error: {str(e)}"}
 
     # Graceful fallback: if DB envs are missing, skip execution
     if not all([
@@ -81,14 +105,14 @@ async def ask(body: AskRequest):
         getattr(config, "tidb_password", None),
         getattr(config, "tidb_db_name", None),
     ]):
-        return {"sql": sql_query, "results": [], "note": "DB connection not configured"}
+        return {"sql": sql_query, "results": [], "note": "DB connection not configured", "files_received": len(files)}
 
     try:
         results = run_query(sql_query)
     except Exception as e:
         # Return generated SQL with note instead of 500
-        return {"sql": sql_query, "results": [], "note": f"DB error: {str(e)}"}
+        return {"sql": sql_query, "results": [], "note": f"DB error: {str(e)}", "files_received": len(files)}
 
-    return {"sql": sql_query, "results": results}
+    return {"sql": sql_query, "results": results, "files_received": len(files)}
 
 # Run with: uvicorn main:app --reload --port 5000

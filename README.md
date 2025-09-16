@@ -1,4 +1,4 @@
-# S&P 500 Agentic AI Project
+# Bluejay AI
 
 An intelligent chat application that provides AI-driven insights and analysis for S&P 500 component stocks. The application features a modern React frontend with file upload capabilities and a FastAPI backend with OpenAI integration and TiDB database connectivity.
 

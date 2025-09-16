@@ -25,21 +25,107 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
-# Add database directory to path
-current_dir = Path(__file__).parent
-sys.path.append(str(current_dir))
+# Add parent directories to path for imports - system independent
+current_dir = Path(__file__).parent.absolute()
+data_engg_root = current_dir.parent  # Go up to data_engg/
+sys.path.insert(0, str(data_engg_root))
 
 # Import database connection
 try:
-    from db_connection import engine, Session
-    from config.config import Config
+    from database.db_connection import engine, Session
+    from database.config.config import Config
 
     print("Database modules imported successfully")
 except ImportError as e:
     print(f"Error importing database modules: {e}")
+    print(f"Data engg root: {data_engg_root}")
+    print("Make sure you're running from the correct directory and modules exist.")
     sys.exit(1)
 
 Base = declarative_base()
+
+
+# SEC Tables - copied from models folder
+class BronzeSecFacts(Base):
+    """Bronze SEC Facts Data Table"""
+
+    __tablename__ = "bronze_sec_facts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cik = Column(String(13), nullable=False)
+    taxonomy = Column(String(64), nullable=False)
+    tag = Column(String(256), nullable=False)
+    unit = Column(String(32), nullable=False)
+    val = Column(Numeric(precision=30, scale=2), nullable=False)
+    fy = Column(Numeric, nullable=True)
+    fp = Column(String(8), nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    frame = Column(String(128), nullable=True)
+    form = Column(String(16), nullable=True)
+    filed = Column(Date, nullable=True)
+    accn = Column(String(32), nullable=True)
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<BronzeSecFacts(id={self.id}, cik={self.cik}, tag={self.tag}, val={self.val})>"
+
+
+class BronzeSecFactsDict(Base):
+    """Bronze SEC Facts Dictionary Table"""
+
+    __tablename__ = "bronze_sec_facts_dict"
+
+    # Business key (natural key)
+    taxonomy = Column(String(64), nullable=False)
+    tag = Column(String(256), nullable=False)
+
+    # Data attributes
+    label = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+
+    # Audit attributes
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<BronzeSecFactsDict(id={self.id}, taxonomy={self.taxonomy}, tag={self.tag})>"
+
+
+class BronzeSecSubmissions(Base):
+    """Bronze SEC Submissions Data Table"""
+
+    __tablename__ = "bronze_sec_submissions"
+
+    # Composite Primary Key (based on your analysis)
+    cik = Column(String(13), primary_key=True, nullable=False)
+    accession_number = Column(String(25), primary_key=True, nullable=False)
+    filing_date = Column(Date, primary_key=True, nullable=False)
+    acceptance_datetime = Column(DateTime, primary_key=True, nullable=False)
+
+    # Additional data fields
+    report_date = Column(Date, nullable=True)
+    act = Column(Text, nullable=True)
+    form = Column(Text, nullable=True)
+    file_number = Column(Text, nullable=True)
+    film_number = Column(BigInteger, nullable=True)
+    items = Column(Text, nullable=True)
+    size = Column(Integer, nullable=True)
+    is_xbrl = Column(Integer, nullable=True)
+    is_inline_xbrl = Column(Integer, nullable=True)
+    primary_document = Column(Text, nullable=True)
+    primary_doc_description = Column(Text, nullable=True)
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<BronzeSecSubmissions(cik={self.cik}, accession_number={self.accession_number}, form={self.form})>"
 
 
 class Sp500StockData(Base):
@@ -100,8 +186,30 @@ class Sp500ComponentChanges(Base):
         return f"<Sp500ComponentChanges(effective_date={self.effective_date}, added_ticker={self.added_ticker}, removed_ticker={self.removed_ticker})>"
 
 
+class Sp500FinnhubNews(Base):
+    """S&P 500 Finnhub News Table"""
+
+    __tablename__ = "sp500_finnhub_news"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(10), nullable=False)
+    news_id = Column(String(50), nullable=False)
+    datetime = Column(DateTime, nullable=False)
+    headline = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    source = Column(String(200), nullable=True)
+    url = Column(Text, nullable=True)
+    image = Column(Text, nullable=True)
+    related = Column(String(10), nullable=True)
+    category = Column(String(100), nullable=True)
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<Sp500FinnhubNews(symbol={self.symbol}, datetime={self.datetime}, headline={self.headline[:50]}...)>"
+
+
 def create_specific_table(table_name: str):
-    """Create a specific table by name"""
     try:
         print(f"Creating table: {table_name}")
         print("=" * 50)
@@ -120,11 +228,7 @@ def create_specific_table(table_name: str):
 
         if not table_class:
             print(f"✗ Table '{table_name}' not found in defined tables")
-            available_tables = [
-                cls.__tablename__
-                for cls in Base.registry._class_registry.values()
-                if hasattr(cls, "__tablename__")
-            ]
+            available_tables = list_available_tables()
             print(f"Available tables: {', '.join(available_tables)}")
             return False
 
@@ -158,11 +262,7 @@ def drop_specific_table(table_name: str):
 
         if not table_class:
             print(f"✗ Table '{table_name}' not found in defined tables")
-            available_tables = [
-                cls.__tablename__
-                for cls in Base.registry._class_registry.values()
-                if hasattr(cls, "__tablename__")
-            ]
+            available_tables = list_available_tables()
             print(f"Available tables: {', '.join(available_tables)}")
             return False
 
@@ -324,7 +424,7 @@ def main():
     parser = argparse.ArgumentParser(description="Database Table Creation Tool")
     parser.add_argument("--create", action="store_true", help="Create all tables")
     parser.add_argument(
-        "--drop", action="store_true", help="Drop all tables (DANGEROUS!)"
+        "--drop-all", action="store_true", help="Drop all tables (DANGEROUS!)"
     )
     parser.add_argument(
         "--show-tables", action="store_true", help="Show existing tables"
@@ -358,7 +458,7 @@ def main():
     if args.show_tables:
         show_table_info()
 
-    if args.drop:
+    if args.drop_all:
         confirm = input(
             "Are you sure you want to drop all tables? This will DELETE ALL DATA! (yes/no): "
         )
@@ -410,7 +510,7 @@ def main():
         print("=" * 50)
         print("Available commands:")
         print("  --create              Create all tables")
-        print("  --drop                Drop all tables (DANGEROUS!)")
+        print("  --drop-all            Drop all tables (DANGEROUS!)")
         print("  --recreate            Drop and recreate all tables (DANGEROUS!)")
         print("  --show-tables         Show existing tables")
         print("  --create-table NAME   Create a specific table by name")

@@ -38,14 +38,20 @@ data_pipeline/
 ```bash
 cd data_pipeline/ingestion
 
-# OHLC data
-python sp500_stooq_ohcl_ingestion.py --input-file ../../data/normalised_data/normalized_sp500_data.csv
+# OHLC data (uses default path: ../../../data/normalised_data/normalized_sp500_data.csv)
+python sp500_stooq_ohcl_ingestion.py
 
-# Wiki list
-python sp500_wik_list_ingestion.py --input-file ../../data/S_and_P_500_component_stocks.csv
+# Wiki list (uses default path: ../../../data/S_and_P_500_component_stocks.csv)
+python sp500_wik_list_ingestion.py
 
-# Component changes
-python sp500_component_changes_ingestion.py --input-file ../../data/selected_changes_s_and_p_component_stocks.csv
+# Component changes (uses default path: ../../../data/selected_changes_s_and_p_component_stocks.csv)
+python sp500_component_changes_ingestion.py
+
+# Finnhub news data (uses default path: ../../../data/sp500_finnhub_news_5y.csv)
+python sp500_finnhub_news_ingestion.py
+
+# Or specify custom input file
+python sp500_finnhub_news_ingestion.py --input-file /path/to/custom/file.csv
 ```
 
 ## Orchestration

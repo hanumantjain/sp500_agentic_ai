@@ -1,8 +1,13 @@
 import sys
 import os
+from pathlib import Path
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db_connection import engine
+# Add parent directories to path for imports - system independent
+current_dir = Path(__file__).parent.absolute()
+data_engg_root = current_dir.parent.parent  # Go up to data_engg/
+sys.path.insert(0, str(data_engg_root))
+
+from database.db_connection import engine
 from sqlalchemy import inspect
 
 print("Checking database tables...")

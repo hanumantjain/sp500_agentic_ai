@@ -68,6 +68,7 @@ dmypy.json
 .env.test.local
 .env.production.local
 .env.ssp
+.env.main
 
 # Database files
 *.db
@@ -82,3 +83,8 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# folder for data
+data/submissions_facts
+data/submissions_sec_docs
+

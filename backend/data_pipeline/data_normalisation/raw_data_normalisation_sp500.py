@@ -1,12 +1,13 @@
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
+import os
 
 
 class ExtractFileName:
     def __init__(
         self,
-        input_dir: Path = Path("../data/sp500_ohcl"),
+        input_dir: Path = Path("../data/sp500_stooq_ohcl"),
         output_dir: Path = Path("../data/normalised_data"),
     ):
         self._input_dir = input_dir
@@ -36,13 +37,25 @@ class ExtractFileName:
         return output_file
 
 
+def load_ticker_mapping(mapping_file_path: str) -> pd.DataFrame:
+    """Load ticker mapping from CSV file"""
+    try:
+        mapping_df = pd.read_csv(mapping_file_path)
+        print(f"Loaded ticker mapping: {len(mapping_df)} symbols")
+        return mapping_df
+    except Exception as e:
+        print(f"Error loading ticker mapping: {e}")
+        return None
+
+
 class DataNormalizer:
     def __init__(
         self,
-        input_dir: Path = Path("../data/sp500_ohcl"),
+        input_dir: Path = Path("../data/sp500_stooq_ohcl"),
         output_dir: Path = Path("../data/normalised_data"),
         start_date: str = None,
         end_date: str = None,
+        mapping_file: str = "../data/sp500_stooq_symbols_map.csv",
     ):
         self._input_dir = input_dir
         self._output_dir = output_dir
@@ -50,6 +63,45 @@ class DataNormalizer:
         self._normalized_data = []
         self._start_date = start_date
         self._end_date = end_date
+        self._mapping_file = mapping_file
+        self._ticker_mapping = None
+
+    def load_ticker_mapping(self):
+        """Load ticker mapping from CSV file"""
+        if self._ticker_mapping is None:
+            self._ticker_mapping = load_ticker_mapping(self._mapping_file)
+        return self._ticker_mapping
+
+    def apply_ticker_mapping(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply ticker mapping to replace Stooq symbols with original tickers"""
+        mapping_df = self.load_ticker_mapping()
+
+        if mapping_df is None:
+            print("Warning: No ticker mapping available, keeping original tickers")
+            return df
+
+        # Create mapping dictionary
+        ticker_mapping = dict(zip(mapping_df["symbol"], mapping_df["Original Ticker"]))
+
+        # Apply mapping
+        initial_tickers = df["Ticker"].nunique()
+        df["Ticker"] = df["Ticker"].map(ticker_mapping)
+
+        # Count unmapped tickers
+        unmapped_count = df["Ticker"].isna().sum()
+        if unmapped_count > 0:
+            print(f"Warning: {unmapped_count} records have unmapped tickers")
+            # Show some examples of unmapped tickers
+            unmapped_tickers = df[df["Ticker"].isna()]["Ticker"].unique()[:5]
+            print(f"Example unmapped tickers: {unmapped_tickers}")
+
+        # Remove rows with unmapped tickers
+        df = df.dropna(subset=["Ticker"])
+        print(
+            f"Mapped tickers: {initial_tickers} -> {df['Ticker'].nunique()} unique tickers"
+        )
+
+        return df
 
     def normalize_single_file(self, filename: str):
         """Normalize a single txt file and return DataFrame with required columns."""
@@ -146,6 +198,9 @@ class DataNormalizer:
                     # Combine batch DataFrames
                     batch_combined = pd.concat(batch_data, ignore_index=True)
 
+                    # Apply ticker mapping to replace Stooq symbols with original tickers
+                    batch_combined = self.apply_ticker_mapping(batch_combined)
+
                     # Write batch to CSV (append mode after first batch)
                     mode = "w" if is_first_batch else "a"
                     header = is_first_batch
@@ -197,20 +252,22 @@ class DataPipelinenormalization:
 
     def __init__(
         self,
-        input_dir: Path = Path("../data/sp500_ohcl"),
+        input_dir: Path = Path("../data/sp500_stooq_ohcl"),
         output_dir: Path = Path("../data/normalised_data"),
         start_date: str = None,
         end_date: str = None,
         batch_size: int = 50,
+        mapping_file: str = "../data/sp500_stooq_symbols_map.csv",
     ):
         self._input_dir = input_dir
         self._output_dir = output_dir
         self._start_date = start_date
         self._end_date = end_date
         self._batch_size = batch_size
+        self._mapping_file = mapping_file
         self._file_extractor = ExtractFileName(input_dir, output_dir)
         self._data_normalizer = DataNormalizer(
-            input_dir, output_dir, start_date, end_date
+            input_dir, output_dir, start_date, end_date, mapping_file
         )
 
     def run_complete_pipeline(self):

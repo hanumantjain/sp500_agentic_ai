@@ -18,20 +18,20 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Check if the Python script exists
-if [ ! -f "data_pipeline/data_normalisation/raw_data_normalisation.py" ]; then
-    echo "Error: raw_data_normalisation.py not found"
+if [ ! -f "data_pipeline/data_normalisation/raw_data_normalisation_sp500.py" ]; then
+    echo "Error: raw_data_normalisation_sp500.py not found"
     exit 1
 fi
 
 # Check if input data directory exists
-if [ ! -d "../data/sp500_ohcl" ]; then
-    echo "Error: Input data directory '../data/sp500_ohcl' not found"
+if [ ! -d "../data/sp500_stooq_ohcl" ]; then
+    echo "Error: Input data directory '../data/sp500_stooq_ohcl' not found"
     echo "Please ensure the S&P 500 data files are in the correct location"
     exit 1
 fi
 
 echo "Running complete data pipeline..."
-echo "Input directory: ../data/sp500_ohcl"
+echo "Input directory: ../data/sp500_stooq_ohcl"
 echo "Output directory: ../data/normalised_data"
 echo "Processing: File extraction + Data normalization"
 echo ""
@@ -41,23 +41,29 @@ echo ""
 START_DATE="$1"
 END_DATE="$2"
 
-python -c "
+python3 -c "
 import sys
+from pathlib import Path
 sys.path.append('data_pipeline')
-from data_normalisation.raw_data_normalisation import DataPipelinenormalization
+from data_normalisation.raw_data_normalisation_sp500 import DataPipelinenormalization
 
 try:
     # Create pipeline instance with date filtering
     start_date = '$START_DATE' if '$START_DATE' else None
     end_date = '$END_DATE' if '$END_DATE' else None
     
-    pipeline = DataPipelinenormalization(start_date=start_date, end_date=end_date)
+    pipeline = DataPipelinenormalization(
+        input_dir=Path('../data/sp500_stooq_ohcl'),
+        output_dir=Path('../data/normalised_data'),
+        start_date=start_date,
+        end_date=end_date,
+    )
     
     # Run complete pipeline
     results = pipeline.run_complete_pipeline()
     
     if results:
-        print(f'Pipeline Results:')
+        print('Pipeline Results:')
         print(f'- File names extracted: {results[\"file_names_count\"]}')
         print(f'- Records normalized: {results[\"normalized_records\"]:,}')
         print(f'- Output files: {len(results[\"output_files\"])}')

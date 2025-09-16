@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/ask",
+      "destination": "http://107.22.140.160:8000/ask"
+    },
+    {
+      "source": "/hello",
+      "destination": "http://107.22.140.160:8000/hello"
+    },
+    {
+      "source": "/history",
+      "destination": "http://107.22.140.160:8000/history"
+    },
+    {
+      "source": "/session-docs/:path*",
+      "destination": "http://107.22.140.160:8000/session-docs/:path*"
+    },
+    {
+      "source": "/delete-session/:path*",
+      "destination": "http://107.22.140.160:8000/delete-session/:path*"
+    }
+  ]
+}

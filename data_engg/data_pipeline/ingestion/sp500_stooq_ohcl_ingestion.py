@@ -215,7 +215,7 @@ def main():
     parser.add_argument(
         "--input-file",
         type=str,
-        default="/Users/ssp/Documents/MS_CS/Projects_git/sp500_agentic_ai/data/normalised_data/normalized_sp500_data.csv",
+        default="../../../data/normalised_data/normalized_sp500_data.csv",
         help="Path to input CSV file",
     )
     parser.add_argument(

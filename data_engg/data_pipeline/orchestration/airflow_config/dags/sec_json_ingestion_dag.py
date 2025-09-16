@@ -121,7 +121,7 @@ def scan_json_files():
     """Scan and return list of all JSON files in company_facts directory"""
     try:
         # Path to the JSON files directory (relative to project root)
-        project_root = backend_root.parent
+        project_root = data_engg_root.parent
         json_directory = project_root / "data" / "company_facts"
         json_dir = Path(json_directory)
 

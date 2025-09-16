@@ -50,7 +50,7 @@ class SECSubmissionsExtractor:
         """
         Extracts the company CIK identifier from a JSON filename.
         Ensures that each data record is associated with the correct company.
-        Formats CIK as 0000000000 (padded to 10 digits without CIK prefix).
+        Formats CIK as CIK0000000000 (padded to 10 digits with CIK prefix).
 
         Handles both formats:
         - CIK0000001800.json
@@ -60,7 +60,7 @@ class SECSubmissionsExtractor:
             filepath: Path to JSON file
 
         Returns:
-            Formatted CIK string (e.g., 0000001800)
+            Formatted CIK string (e.g., CIK0000001800)
         """
         filename = filepath.stem  # Remove .json extension
         cik_part = filename.replace("CIK", "")
@@ -71,8 +71,8 @@ class SECSubmissionsExtractor:
         else:
             cik_number = cik_part
 
-        # Format as 0000000000 (padded to 10 digits)
-        return f"{int(cik_number):010d}"
+        # Format as CIK0000000000 (padded to 10 digits with CIK prefix)
+        return f"CIK{int(cik_number):010d}"
 
     def load_json_file(self, filepath: Path) -> Dict[str, Any]:
         """

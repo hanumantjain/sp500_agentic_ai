@@ -35,6 +35,7 @@ python create_tables.py --delete-data sp500_stooq_ohcl
 | `sp500_stooq_ohcl` | S&P 500 OHLC stock data |
 | `sp500_wik_list` | S&P 500 company information |
 | `selected_changes_sp500` | S&P 500 component changes |
+| `sp500_finnhub_news` | S&P 500 news data from Finnhub |
 | `bronze_sec_facts` | Raw SEC facts data |
 | `bronze_sec_submissions` | Raw SEC submissions data |
 

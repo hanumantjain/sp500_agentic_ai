@@ -8,23 +8,23 @@ export default defineConfig({
   server: {
     proxy: {
       '/ask': {
-        target: 'http://localhost:8000',
+        target: 'https://bluejai-ai-server.vercel.app',
         changeOrigin: true,
       },
       '/hello': {
-        target: 'http://localhost:8000',
+        target: 'https://bluejai-ai-server.vercel.app',
         changeOrigin: true,
       },
       '/history': {
-        target: 'http://localhost:8000',
+        target: 'https://bluejai-ai-server.vercel.app',
         changeOrigin: true,
       },
       '/session-docs': {
-        target: 'http://localhost:8000',
+        target: 'https://bluejai-ai-server.vercel.app',
         changeOrigin: true,
       },
       '/delete-session': {
-        target: 'http://localhost:8000',
+        target: 'https://bluejai-ai-server.vercel.app',
         changeOrigin: true,
       },
     },

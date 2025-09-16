@@ -23,21 +23,23 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import argparse
 
-# Add database directory to path
-current_dir = Path(__file__).parent
-sys.path.append(str(current_dir))
+# Add parent directories to path for imports - system independent
+current_dir = Path(__file__).parent.absolute()
+data_engg_root = current_dir.parent  # Go up to data_engg/
+sys.path.insert(0, str(data_engg_root))
 
 # Import database modules
 try:
-    from db_connection import engine, Session
-    from config.config import Config
-    from models.sec_facts_raw import BronzeSecFacts, BronzeSecFactsDict
-    from models.sec_submissions_raw import BronzeSecSubmissions
+    from database.db_connection import engine, Session
+    from database.config.config import Config
+    from database.models.sec_facts_raw import BronzeSecFacts, BronzeSecFactsDict
+    from database.models.sec_submissions_raw import BronzeSecSubmissions
 
     print("Database modules imported successfully")
 except ImportError as e:
     print(f"Error importing database modules: {e}")
-    print("Make sure you're running this script from the database directory")
+    print(f"Data engg root: {data_engg_root}")
+    print("Make sure you're running from the correct directory and modules exist.")
     sys.exit(1)
 
 
@@ -152,7 +154,10 @@ def execute_sql_query(query: str, return_df: bool = True, limit: int = 1000):
             print("-" * 50)
 
             if return_df:
-                result_df = pd.read_sql(query, engine)
+                # Use raw connection for pandas compatibility
+                raw_connection = engine.raw_connection()
+                result_df = pd.read_sql(query, raw_connection)
+                raw_connection.close()
                 print(f"Query executed successfully - {len(result_df)} rows returned")
                 return result_df
             else:

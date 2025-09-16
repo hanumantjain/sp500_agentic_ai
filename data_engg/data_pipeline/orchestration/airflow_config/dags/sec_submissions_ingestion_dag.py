@@ -106,7 +106,7 @@ def scan_submissions_files():
     """Scan and return list of all JSON files in submissions_facts directory"""
     try:
         # Path to the JSON files directory (relative to project root)
-        project_root = backend_root.parent
+        project_root = data_engg_root.parent
         json_directory = project_root / "data" / "submissions_facts"
         json_dir = Path(json_directory)
 
@@ -207,20 +207,20 @@ def process_all_submissions_files(**context):
                 if result["status"] == "success":
                     successful_files += 1
                     total_records_processed += result.get("total_records", 0)
-                    print(f"✓ Successfully processed {filename}")
+                    print(f"Successfully processed {filename}")
                     print(f"   CIK: {result.get('cik', 'N/A')}")
                     print(f"   Records: {result.get('total_records', 0):,}")
                 else:
                     failed_files += 1
                     error_msg = result.get("error", "Unknown error")
                     failed_file_details.append(f"{filename}: {error_msg}")
-                    print(f"✗ Failed to process {filename}: {error_msg}")
+                    print(f"Failed to process {filename}: {error_msg}")
 
             except Exception as e:
                 failed_files += 1
                 error_msg = str(e)
                 failed_file_details.append(f"{filename}: {error_msg}")
-                print(f"✗ Error processing {filename}: {error_msg}")
+                print(f"Error processing {filename}: {error_msg}")
                 continue
 
         print(f"\n=== SUBMISSIONS PROCESSING SUMMARY ===")
@@ -282,21 +282,21 @@ def validate_submissions_setup():
             table_exists = result.scalar() > 0
 
         if not table_exists:
-            print("❌ bronze_sec_submissions table does not exist!")
+            print("bronze_sec_submissions table does not exist!")
             print("Run: ./setup_database_submissions.sh")
             raise Exception("Submissions table not found")
 
-        print("✅ bronze_sec_submissions table exists")
+        print("bronze_sec_submissions table exists")
 
         # Check initial record count
         with Session() as session:
             initial_count = session.query(BronzeSecSubmissions).count()
-            print(f"✅ Initial submissions count: {initial_count:,}")
+            print(f"Initial submissions count: {initial_count:,}")
 
         return True
 
     except Exception as e:
-        print(f"❌ Submissions setup validation failed: {e}")
+        print(f"Submissions setup validation failed: {e}")
         raise
 
 

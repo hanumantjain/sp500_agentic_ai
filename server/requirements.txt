@@ -2,7 +2,6 @@
 fastapi==0.116.1
 uvicorn==0.35.0
 python-multipart==0.0.20
-mangum
 
 # Google Gemini and LLM Integration
 google-generativeai==0.8.3
@@ -14,41 +13,15 @@ SQLAlchemy==2.0.43
 # Environment and Configuration
 python-dotenv==1.1.1
 
-# Data Processing and Analysis
-pandas==2.3.2
-numpy==2.0.2
-
 # Document Processing and Text Extraction
 PyMuPDF==1.26.4
-pypdf==6.0.0
 beautifulsoup4==4.13.5
 pytesseract==0.3.13
-python-magic==0.4.27
-
-# Web Scraping and Data Fetching
-requests==2.32.5
-
-# Machine Learning and Embeddings (with correct torch version)
-sentence-transformers==5.1.0
-scikit-learn==1.6.1
-torch==2.2.2
-transformers==4.56.1
+Pillow==11.3.0
 
 # Data Validation and Serialization
 pydantic==2.11.9
 pydantic-core==2.33.2
 
-# HTTP and Async Support
-httpx==0.28.1
-aiohttp==3.12.15
-httpcore==1.0.9
-
-# Text Processing and NLP
-trafilatura==2.0.0
-dateparser==1.2.2
-
 # Utilities
-typing-extensions==4.15.0
-python-dateutil==2.9.0.post0
-pytz==2025.2
 certifi==2025.8.3

@@ -1,0 +1,1 @@
+data/normalised_data/normalized_sp500_data.csv filter=lfs diff=lfs merge=lfs -text

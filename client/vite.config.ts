@@ -8,25 +8,25 @@ export default defineConfig({
   server: {
     proxy: {
       '/ask': {
-        target: 'https://bluejai-ai-server.vercel.app',
+        target: 'http://107.22.140.160:8000',
         changeOrigin: true,
       },
       '/hello': {
-        target: 'https://bluejai-ai-server.vercel.app',
+        target: 'http://107.22.140.160:8000',
         changeOrigin: true,
       },
       '/history': {
-        target: 'https://bluejai-ai-server.vercel.app',
+        target: 'http://107.22.140.160:8000',
         changeOrigin: true,
       },
       '/session-docs': {
-        target: 'https://bluejai-ai-server.vercel.app',
+        target: 'http://107.22.140.160:8000',
         changeOrigin: true,
       },
       '/delete-session': {
-        target: 'https://bluejai-ai-server.vercel.app',
+        target: 'http://107.22.140.160:8000',
         changeOrigin: true,
       },
-    },
+    }
   },
 })

@@ -25,7 +25,8 @@ export default function Menu() {
     const fetchHistory = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/history");
+        const baseUrl = (import.meta as any).env?.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/history`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -64,7 +65,8 @@ export default function Menu() {
 
   const handleRefresh = () => {
     setLoading(true);
-    fetch("/history")
+    const baseUrl = (import.meta as any).env?.VITE_API_URL || '';
+    fetch(`${baseUrl}/history`)
       .then(res => res.json())
       .then(data => {
         setHistory(data);
@@ -94,7 +96,8 @@ export default function Menu() {
     setDeletingSessionId(sessionId);
 
     try {
-      const response = await fetch(`/delete-session/${sessionId}`, {
+      const baseUrl = (import.meta as any).env?.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/delete-session/${sessionId}`, {
         method: 'DELETE',
       });
       

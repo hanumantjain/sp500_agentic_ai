@@ -34,7 +34,8 @@ export default function Chat() {
 
   const loadSessionHistory = async (sessionId: string) => {
     try {
-      const response = await fetch(`/history?session_id=${sessionId}`);
+      const baseUrl = (import.meta as any).env?.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/history?session_id=${sessionId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

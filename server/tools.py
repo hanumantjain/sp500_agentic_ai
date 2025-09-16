@@ -359,7 +359,7 @@ def get_sector_breakdown() -> Dict[str, Any]:
     Get a breakdown of S&P 500 companies by GICS sector.
     Shows count and percentage distribution.
     """
-    sql = """
+    sql = f"""
       SELECT 
         gics_sector,
         COUNT(*) as company_count,
@@ -601,7 +601,7 @@ def get_sp500_statistics() -> Dict[str, Any]:
     """
     Get comprehensive statistics about the S&P 500 index.
     """
-    sql = """
+    sql = f"""
       SELECT 
         COUNT(*) as total_companies,
         COUNT(DISTINCT gics_sector) as total_sectors,
@@ -693,7 +693,7 @@ def get_geographic_distribution() -> Dict[str, Any]:
     """
     Get distribution of S&P 500 companies by headquarters location.
     """
-    sql = """
+    sql = f"""
       SELECT 
         headquarters_loc,
         COUNT(*) as company_count,
@@ -764,7 +764,7 @@ def get_sector_performance_summary() -> Dict[str, Any]:
     """
     Get a comprehensive summary of all S&P 500 sectors with company counts and percentages.
     """
-    sql = """
+    sql = f"""
       SELECT 
         gics_sector,
         COUNT(*) as company_count,
@@ -2053,3 +2053,867 @@ def get_sector_news(
         
     except Exception as e:
         return {"error": f"Failed to get sector news: {str(e)}", "sql": sql}
+
+# =============================================================================
+# COMPREHENSIVE FINANCIAL ANALYSIS TOOLS
+# =============================================================================
+
+@register_tool(tags=["financial", "stocks", "analysis"])
+def get_latest_stock_prices(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get the latest stock prices for all S&P 500 companies with company details.
+    """
+    sql = f"""
+        SELECT s.ticker, s.close as latest_price, s.volume as latest_volume, s.date as latest_date,
+               w.security, w.gics_sector, w.headquarters_loc
+        FROM sp500_stooq_ohcl s
+        JOIN sp500_wik_list w ON s.ticker = w.symbol
+        WHERE s.date = (
+            SELECT MAX(date) FROM sp500_stooq_ohcl s2 WHERE s2.ticker = s.ticker
+        )
+        ORDER BY s.close DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "latest_stock_prices",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get latest stock prices: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "performance"])
+def get_stock_performance_analysis(period_days: int = 30, limit: int = 20) -> Dict[str, Any]:
+    """
+    Get stock performance analysis over specified period with percentage changes.
+    """
+    sql = f"""
+        SELECT 
+            s1.ticker,
+            s1.close as current_price,
+            s2.close as price_period_ago,
+            ROUND(((s1.close - s2.close) / s2.close) * 100, 2) as change_pct,
+            w.security,
+            w.gics_sector
+        FROM sp500_stooq_ohcl s1
+        JOIN sp500_stooq_ohcl s2 ON s1.ticker = s2.ticker
+        JOIN sp500_wik_list w ON s1.ticker = w.symbol
+        WHERE s1.date = (SELECT MAX(date) FROM sp500_stooq_ohcl WHERE ticker = s1.ticker)
+        AND s2.date = (
+            SELECT MAX(date) FROM sp500_stooq_ohcl 
+            WHERE ticker = s1.ticker AND date <= DATE_SUB(s1.date, INTERVAL {period_days} DAY)
+        )
+        ORDER BY change_pct DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "stock_performance_analysis",
+            "period_days": period_days,
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get stock performance analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "volume"])
+def get_highest_volume_stocks(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get stocks with highest trading volume for the latest trading day.
+    """
+    sql = f"""
+        SELECT s.ticker, s.volume, s.close, s.date,
+               w.security, w.gics_sector
+        FROM sp500_stooq_ohcl s
+        JOIN sp500_wik_list w ON s.ticker = w.symbol
+        WHERE s.date = (SELECT MAX(date) FROM sp500_stooq_ohcl)
+        ORDER BY s.volume DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "highest_volume_stocks",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get highest volume stocks: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "volatility"])
+def get_stock_volatility_analysis(period_days: int = 90, min_trading_days: int = 60, limit: int = 20) -> Dict[str, Any]:
+    """
+    Get stock volatility analysis with price statistics over specified period.
+    """
+    sql = f"""
+        SELECT 
+            ticker,
+            COUNT(*) as trading_days,
+            ROUND(AVG(close), 2) as avg_price,
+            ROUND(MIN(close), 2) as min_price,
+            ROUND(MAX(close), 2) as max_price,
+            ROUND(STDDEV(close), 2) as price_stddev,
+            ROUND((MAX(close) - MIN(close)) / AVG(close) * 100, 2) as price_range_pct
+        FROM sp500_stooq_ohcl
+        WHERE date >= DATE_SUB((SELECT MAX(date) FROM sp500_stooq_ohcl), INTERVAL {period_days} DAY)
+        GROUP BY ticker
+        HAVING trading_days >= {min_trading_days}
+        ORDER BY price_stddev DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "stock_volatility_analysis",
+            "period_days": period_days,
+            "min_trading_days": min_trading_days,
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get stock volatility analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "technical"])
+def get_moving_averages_analysis(ma_short: int = 20, ma_long: int = 50, limit: int = 20) -> Dict[str, Any]:
+    """
+    Get moving averages analysis for stocks with current price vs moving averages.
+    """
+    sql = f"""
+        SELECT 
+            s1.ticker,
+            s1.close as current_price,
+            ROUND(AVG(s2.close), 2) as ma_short,
+            ROUND(AVG(s3.close), 2) as ma_long,
+            w.security,
+            w.gics_sector
+        FROM sp500_stooq_ohcl s1
+        JOIN sp500_stooq_ohcl s2 ON s1.ticker = s2.ticker 
+            AND s2.date BETWEEN DATE_SUB(s1.date, INTERVAL {ma_short} DAY) AND s1.date
+        JOIN sp500_stooq_ohcl s3 ON s1.ticker = s3.ticker 
+            AND s3.date BETWEEN DATE_SUB(s1.date, INTERVAL {ma_long} DAY) AND s1.date
+        JOIN sp500_wik_list w ON s1.ticker = w.symbol
+        WHERE s1.date = (SELECT MAX(date) FROM sp500_stooq_ohcl WHERE ticker = s1.ticker)
+        GROUP BY s1.ticker, s1.close, w.security, w.gics_sector
+        ORDER BY s1.close DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "moving_averages_analysis",
+            "ma_short": ma_short,
+            "ma_long": ma_long,
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get moving averages analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sector", "analysis"])
+def get_sector_performance_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get sector performance analysis with average prices and volumes.
+    """
+    sql = f"""
+        SELECT 
+            w.gics_sector,
+            COUNT(DISTINCT s.ticker) as companies_count,
+            ROUND(AVG(s.close), 2) as avg_sector_price,
+            ROUND(SUM(s.volume), 0) as total_sector_volume,
+            ROUND(AVG(s.volume), 0) as avg_volume_per_stock
+        FROM sp500_stooq_ohcl s
+        JOIN sp500_wik_list w ON s.ticker = w.symbol
+        WHERE s.date = (SELECT MAX(date) FROM sp500_stooq_ohcl)
+        GROUP BY w.gics_sector
+        ORDER BY avg_sector_price DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "sector_performance_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get sector performance analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "extremes"])
+def get_all_time_highs_lows(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get all-time highs and lows for stocks with dates when they occurred.
+    """
+    sql = f"""
+        SELECT 
+            ticker,
+            MAX(close) as all_time_high,
+            MIN(close) as all_time_low,
+            MAX(date) as latest_date,
+            (SELECT date FROM sp500_stooq_ohcl s2 
+             WHERE s2.ticker = s1.ticker AND s2.close = MAX(s1.close) 
+             ORDER BY date DESC LIMIT 1) as high_date,
+            (SELECT date FROM sp500_stooq_ohcl s3 
+             WHERE s3.ticker = s1.ticker AND s3.close = MIN(s1.close) 
+             ORDER BY date DESC LIMIT 1) as low_date
+        FROM sp500_stooq_ohcl s1
+        GROUP BY ticker
+        ORDER BY all_time_high DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "all_time_highs_lows",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get all-time highs and lows: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "companies", "details"])
+def get_company_details_with_stock(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get comprehensive company details with latest stock information.
+    """
+    sql = f"""
+        SELECT 
+            w.symbol,
+            w.security,
+            w.gics_sector,
+            w.gics_sub_ind,
+            w.headquarters_loc,
+            w.cik,
+            w.founded,
+            s.close as latest_price,
+            s.volume as latest_volume,
+            s.date as latest_trading_date
+        FROM sp500_wik_list w
+        LEFT JOIN (
+            SELECT ticker, close, volume, date,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
+            FROM sp500_stooq_ohcl
+        ) s ON w.symbol = s.ticker AND s.rn = 1
+        ORDER BY w.symbol
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "company_details_with_stock",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get company details with stock: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "companies", "sector"])
+def get_companies_by_sector_detailed(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get detailed breakdown of companies by sector with market statistics.
+    """
+    sql = f"""
+        SELECT 
+            w.gics_sector,
+            COUNT(*) as company_count,
+            GROUP_CONCAT(DISTINCT w.symbol ORDER BY w.symbol SEPARATOR ', ') as symbols,
+            ROUND(AVG(s.close), 2) as avg_stock_price,
+            ROUND(SUM(s.volume), 0) as total_volume
+        FROM sp500_wik_list w
+        LEFT JOIN (
+            SELECT ticker, close, volume,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
+            FROM sp500_stooq_ohcl
+        ) s ON w.symbol = s.ticker AND s.rn = 1
+        GROUP BY w.gics_sector
+        ORDER BY company_count DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "companies_by_sector_detailed",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get companies by sector detailed: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "companies", "location"])
+def get_companies_by_location_detailed(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get detailed breakdown of companies by headquarters location.
+    """
+    sql = f"""
+        SELECT 
+            w.headquarters_loc,
+            COUNT(*) as company_count,
+            GROUP_CONCAT(DISTINCT w.symbol ORDER BY w.symbol SEPARATOR ', ') as symbols,
+            w.gics_sector
+        FROM sp500_wik_list w
+        GROUP BY w.headquarters_loc, w.gics_sector
+        ORDER BY company_count DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "companies_by_location_detailed",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get companies by location detailed: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "companies", "newest"])
+def get_newest_sp500_companies(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get the newest companies added to the S&P 500 with current stock prices.
+    """
+    sql = f"""
+        SELECT 
+            w.symbol,
+            w.security,
+            w.date_added,
+            w.gics_sector,
+            w.headquarters_loc,
+            s.close as current_price
+        FROM sp500_wik_list w
+        LEFT JOIN (
+            SELECT ticker, close,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
+            FROM sp500_stooq_ohcl
+        ) s ON w.symbol = s.ticker AND s.rn = 1
+        ORDER BY w.date_added DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "newest_sp500_companies",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get newest S&P 500 companies: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "highest_priced"])
+def get_highest_priced_stocks(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get stocks with the highest current prices.
+    """
+    sql = f"""
+        SELECT 
+            w.symbol,
+            w.security,
+            w.gics_sector,
+            s.close as current_price,
+            s.volume as current_volume,
+            s.date as latest_date
+        FROM sp500_wik_list w
+        JOIN (
+            SELECT ticker, close, volume, date,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
+            FROM sp500_stooq_ohcl
+        ) s ON w.symbol = s.ticker AND s.rn = 1
+        ORDER BY s.close DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "highest_priced_stocks",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get highest priced stocks: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "revenue"])
+def get_latest_revenue_data(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get the latest revenue data for S&P 500 companies from SEC filings.
+    """
+    sql = f"""
+        SELECT 
+            bf.cik,
+            w.symbol,
+            w.security,
+            bf.tag,
+            bf.val as revenue_value,
+            bf.unit,
+            bf.fy as fiscal_year,
+            bf.fp as fiscal_period,
+            bf.filed as filing_date,
+            bf.form as form_type
+        FROM bronze_sec_facts bf
+        JOIN sp500_wik_list w ON bf.cik = w.cik
+        WHERE bf.tag LIKE '%Revenue%' 
+        AND bf.taxonomy = 'us-gaap'
+        AND bf.fy >= 2020
+        ORDER BY bf.filed DESC, bf.val DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "latest_revenue_data",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get latest revenue data: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "assets"])
+def get_company_assets_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get company assets analysis from SEC filings.
+    """
+    sql = f"""
+        SELECT 
+            bf.cik,
+            w.symbol,
+            w.security,
+            bf.tag,
+            bf.val as asset_value,
+            bf.unit,
+            bf.fy as fiscal_year,
+            bf.fp as fiscal_period,
+            bf.filed as filing_date
+        FROM bronze_sec_facts bf
+        JOIN sp500_wik_list w ON bf.cik = w.cik
+        WHERE bf.tag LIKE '%Assets%' 
+        AND bf.taxonomy = 'us-gaap'
+        AND bf.fy >= 2020
+        ORDER BY bf.val DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "company_assets_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get company assets analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "profitability"])
+def get_profitability_metrics(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get profitability metrics (Net Income, Operating Income, Gross Profit) from SEC filings.
+    """
+    sql = f"""
+        SELECT 
+            bf.cik,
+            w.symbol,
+            w.security,
+            bf.tag,
+            bf.val as metric_value,
+            bf.unit,
+            bf.fy as fiscal_year,
+            bf.fp as fiscal_period,
+            bf.filed as filing_date
+        FROM bronze_sec_facts bf
+        JOIN sp500_wik_list w ON bf.cik = w.cik
+        WHERE bf.tag IN ('NetIncomeLoss', 'OperatingIncomeLoss', 'GrossProfit')
+        AND bf.taxonomy = 'us-gaap'
+        AND bf.fy >= 2020
+        ORDER BY bf.filed DESC, bf.val DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "profitability_metrics",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get profitability metrics: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "cash_flow"])
+def get_cash_flow_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get cash flow analysis from SEC filings.
+    """
+    sql = f"""
+        SELECT 
+            bf.cik,
+            w.symbol,
+            w.security,
+            bf.tag,
+            bf.val as cash_flow_value,
+            bf.unit,
+            bf.fy as fiscal_year,
+            bf.fp as fiscal_period,
+            bf.filed as filing_date
+        FROM bronze_sec_facts bf
+        JOIN sp500_wik_list w ON bf.cik = w.cik
+        WHERE bf.tag LIKE '%CashFlow%'
+        AND bf.taxonomy = 'us-gaap'
+        AND bf.fy >= 2020
+        ORDER BY bf.filed DESC, ABS(bf.val) DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "cash_flow_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get cash flow analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "debt_equity"])
+def get_debt_equity_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get debt and equity analysis from SEC filings.
+    """
+    sql = f"""
+        SELECT 
+            bf.cik,
+            w.symbol,
+            w.security,
+            bf.tag,
+            bf.val as debt_equity_value,
+            bf.unit,
+            bf.fy as fiscal_year,
+            bf.fp as fiscal_period,
+            bf.filed as filing_date
+        FROM bronze_sec_facts bf
+        JOIN sp500_wik_list w ON bf.cik = w.cik
+        WHERE (bf.tag LIKE '%Debt%' OR bf.tag LIKE '%Equity%')
+        AND bf.taxonomy = 'us-gaap'
+        AND bf.fy >= 2020
+        ORDER BY bf.filed DESC, bf.val DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "debt_equity_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get debt equity analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "latest"])
+def get_latest_news_by_company(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get the latest news for S&P 500 companies.
+    """
+    sql = f"""
+        SELECT 
+            n.symbol,
+            w.security,
+            n.headline,
+            n.summary,
+            n.source,
+            n.datetime,
+            n.url,
+            n.category
+        FROM sp500_finnhub_news n
+        JOIN sp500_wik_list w ON n.symbol = w.symbol
+        WHERE n.datetime >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ORDER BY n.datetime DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "latest_news_by_company",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get latest news by company: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "sector"])
+def get_news_by_sector_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get news analysis by sector with company coverage.
+    """
+    sql = f"""
+        SELECT 
+            w.gics_sector,
+            COUNT(*) as news_count,
+            GROUP_CONCAT(DISTINCT n.symbol ORDER BY n.symbol SEPARATOR ', ') as companies_with_news,
+            MAX(n.datetime) as latest_news_time
+        FROM sp500_finnhub_news n
+        JOIN sp500_wik_list w ON n.symbol = w.symbol
+        WHERE n.datetime >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY w.gics_sector
+        ORDER BY news_count DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "news_by_sector_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get news by sector analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "sources"])
+def get_most_active_news_sources(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get the most active news sources covering S&P 500 companies.
+    """
+    sql = f"""
+        SELECT 
+            n.source,
+            COUNT(*) as article_count,
+            COUNT(DISTINCT n.symbol) as companies_covered,
+            MAX(n.datetime) as latest_article
+        FROM sp500_finnhub_news n
+        WHERE n.datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY n.source
+        ORDER BY article_count DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "most_active_news_sources",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get most active news sources: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sp500", "changes"])
+def get_recent_sp500_changes(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get recent S&P 500 component changes (additions and removals).
+    """
+    sql = f"""
+        SELECT 
+            effective_date,
+            added_ticker,
+            added_security,
+            removed_ticker,
+            removed_security,
+            reason
+        FROM selected_changes_sp500
+        WHERE effective_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        ORDER BY effective_date DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "recent_sp500_changes",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get recent S&P 500 changes: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sp500", "additions"])
+def get_companies_added_to_sp500(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get companies recently added to the S&P 500 with details.
+    """
+    sql = f"""
+        SELECT 
+            effective_date,
+            added_ticker,
+            added_security,
+            reason,
+            w.gics_sector,
+            w.headquarters_loc
+        FROM selected_changes_sp500 sc
+        LEFT JOIN sp500_wik_list w ON sc.added_ticker = w.symbol
+        WHERE added_ticker IS NOT NULL
+        AND effective_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        ORDER BY effective_date DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "companies_added_to_sp500",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get companies added to S&P 500: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sp500", "removals"])
+def get_companies_removed_from_sp500(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get companies recently removed from the S&P 500 with details.
+    """
+    sql = f"""
+        SELECT 
+            effective_date,
+            removed_ticker,
+            removed_security,
+            reason,
+            w.gics_sector,
+            w.headquarters_loc
+        FROM selected_changes_sp500 sc
+        LEFT JOIN sp500_wik_list w ON sc.removed_ticker = w.symbol
+        WHERE removed_ticker IS NOT NULL
+        AND effective_date >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+        ORDER BY effective_date DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "companies_removed_from_sp500",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get companies removed from S&P 500: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stocks", "correlation"])
+def get_stock_correlation_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get stock correlation analysis showing similar performing stocks.
+    """
+    sql = f"""
+        WITH stock_returns AS (
+            SELECT 
+                ticker,
+                date,
+                close,
+                LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close,
+                (close - LAG(close) OVER (PARTITION BY ticker ORDER BY date)) / 
+                LAG(close) OVER (PARTITION BY ticker ORDER BY date) as daily_return
+            FROM sp500_stooq_ohcl
+            WHERE date >= DATE_SUB((SELECT MAX(date) FROM sp500_stooq_ohcl), INTERVAL 90 DAY)
+        )
+        SELECT 
+            s1.ticker as ticker1,
+            s2.ticker as ticker2,
+            COUNT(*) as common_days,
+            ROUND(AVG(s1.daily_return), 4) as avg_return_1,
+            ROUND(AVG(s2.daily_return), 4) as avg_return_2,
+            ROUND(STDDEV(s1.daily_return), 4) as stddev_1,
+            ROUND(STDDEV(s2.daily_return), 4) as stddev_2
+        FROM stock_returns s1
+        JOIN stock_returns s2 ON s1.date = s2.date AND s1.ticker < s2.ticker
+        WHERE s1.daily_return IS NOT NULL AND s2.daily_return IS NOT NULL
+        GROUP BY s1.ticker, s2.ticker
+        HAVING COUNT(*) >= 60
+        ORDER BY ABS(AVG(s1.daily_return) - AVG(s2.daily_return)) ASC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "stock_correlation_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get stock correlation analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sector", "rotation"])
+def get_sector_rotation_analysis(limit: int = 20) -> Dict[str, Any]:
+    """
+    Get sector rotation analysis showing sector performance trends.
+    """
+    sql = f"""
+        WITH sector_performance AS (
+            SELECT 
+                w.gics_sector,
+                s.date,
+                AVG(s.close) as avg_sector_price,
+                AVG(s.volume) as avg_sector_volume
+            FROM sp500_stooq_ohcl s
+            JOIN sp500_wik_list w ON s.ticker = w.symbol
+            WHERE s.date >= DATE_SUB((SELECT MAX(date) FROM sp500_stooq_ohcl), INTERVAL 90 DAY)
+            GROUP BY w.gics_sector, s.date
+        ),
+        sector_changes AS (
+            SELECT 
+                gics_sector,
+                date,
+                avg_sector_price,
+                LAG(avg_sector_price) OVER (PARTITION BY gics_sector ORDER BY date) as prev_price,
+                (avg_sector_price - LAG(avg_sector_price) OVER (PARTITION BY gics_sector ORDER BY date)) / 
+                LAG(avg_sector_price) OVER (PARTITION BY gics_sector ORDER BY date) as daily_change
+            FROM sector_performance
+        )
+        SELECT 
+            gics_sector,
+            COUNT(*) as trading_days,
+            ROUND(AVG(daily_change) * 100, 2) as avg_daily_change_pct,
+            ROUND(STDDEV(daily_change) * 100, 2) as volatility_pct,
+            ROUND(SUM(CASE WHEN daily_change > 0 THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) as positive_days_pct
+        FROM sector_changes
+        WHERE daily_change IS NOT NULL
+        GROUP BY gics_sector
+        ORDER BY avg_daily_change_pct DESC
+        LIMIT {limit}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "sector_rotation_analysis",
+            "results_found": len(rows),
+            "data": rows,
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to get sector rotation analysis: {str(e)}", "sql": sql}

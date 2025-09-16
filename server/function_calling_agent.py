@@ -32,7 +32,34 @@ from tools import (
     get_company_news,
     search_news_by_keywords,
     get_market_news,
-    get_sector_news
+    get_sector_news,
+    search_docs_auto,
+    # New comprehensive financial analysis tools
+    get_latest_stock_prices,
+    get_stock_performance_analysis,
+    get_highest_volume_stocks,
+    get_stock_volatility_analysis,
+    get_moving_averages_analysis,
+    get_sector_performance_analysis,
+    get_all_time_highs_lows,
+    get_company_details_with_stock,
+    get_companies_by_sector_detailed,
+    get_companies_by_location_detailed,
+    get_newest_sp500_companies,
+    get_highest_priced_stocks,
+    get_latest_revenue_data,
+    get_company_assets_analysis,
+    get_profitability_metrics,
+    get_cash_flow_analysis,
+    get_debt_equity_analysis,
+    get_latest_news_by_company,
+    get_news_by_sector_analysis,
+    get_most_active_news_sources,
+    get_recent_sp500_changes,
+    get_companies_added_to_sp500,
+    get_companies_removed_from_sp500,
+    get_stock_correlation_analysis,
+    get_sector_rotation_analysis
 )
 
 # Function to get fresh Gemini model with current API key
@@ -49,6 +76,8 @@ model = get_gemini_model()
 SYSTEM_PROMPT = """You are a financial advisor specializing in S&P 500 companies.
 
 CRITICAL: You MUST respond with JSON when tools are needed. Do NOT use natural language for tool calls.
+
+IMPORTANT: If the user mentions "uploaded document", "document", "report", or asks questions about document content, you should use the search_docs_auto tool to search through the uploaded documents.
 
 When a user asks a question:
 
@@ -136,6 +165,72 @@ Response: {"tool": "get_market_news", "args": {"limit": 10, "days_back": 7}}
 User: "Show me technology sector news"
 Response: {"tool": "get_sector_news", "args": {"sector": "Technology", "limit": 5}}
 
+User: "What does the uploaded document say about revenue?"
+Response: {"tool": "search_docs_auto", "args": {"question": "What does the document say about revenue?", "k": 8}}
+
+User: "Analyze the uploaded Microsoft report"
+Response: {"tool": "search_docs_auto", "args": {"question": "Analyze the Microsoft report", "k": 8}}
+
+User: "Show me the latest stock prices"
+Response: {"tool": "get_latest_stock_prices", "args": {"limit": 20}}
+
+User: "Which stocks have the highest volume today?"
+Response: {"tool": "get_highest_volume_stocks", "args": {"limit": 10}}
+
+User: "Show me stock performance over the last 30 days"
+Response: {"tool": "get_stock_performance_analysis", "args": {"period_days": 30, "limit": 20}}
+
+User: "What are the most volatile stocks?"
+Response: {"tool": "get_stock_volatility_analysis", "args": {"period_days": 90, "limit": 10}}
+
+User: "Show me moving averages analysis"
+Response: {"tool": "get_moving_averages_analysis", "args": {"ma_short": 20, "ma_long": 50, "limit": 20}}
+
+User: "Which sectors are performing best?"
+Response: {"tool": "get_sector_performance_analysis", "args": {"limit": 10}}
+
+User: "Show me all-time highs and lows"
+Response: {"tool": "get_all_time_highs_lows", "args": {"limit": 20}}
+
+User: "What are the newest companies in S&P 500?"
+Response: {"tool": "get_newest_sp500_companies", "args": {"limit": 10}}
+
+User: "Show me highest priced stocks"
+Response: {"tool": "get_highest_priced_stocks", "args": {"limit": 10}}
+
+User: "What's the latest revenue data?"
+Response: {"tool": "get_latest_revenue_data", "args": {"limit": 20}}
+
+User: "Show me company assets analysis"
+Response: {"tool": "get_company_assets_analysis", "args": {"limit": 20}}
+
+User: "What are the profitability metrics?"
+Response: {"tool": "get_profitability_metrics", "args": {"limit": 20}}
+
+User: "Show me cash flow analysis"
+Response: {"tool": "get_cash_flow_analysis", "args": {"limit": 20}}
+
+User: "What's the debt and equity analysis?"
+Response: {"tool": "get_debt_equity_analysis", "args": {"limit": 20}}
+
+User: "Show me latest company news"
+Response: {"tool": "get_latest_news_by_company", "args": {"limit": 10}}
+
+User: "What are the most active news sources?"
+Response: {"tool": "get_most_active_news_sources", "args": {"limit": 10}}
+
+User: "Show me recent S&P 500 changes"
+Response: {"tool": "get_recent_sp500_changes", "args": {"limit": 10}}
+
+User: "Which companies were added to S&P 500?"
+Response: {"tool": "get_companies_added_to_sp500", "args": {"limit": 10}}
+
+User: "Show me stock correlation analysis"
+Response: {"tool": "get_stock_correlation_analysis", "args": {"limit": 20}}
+
+User: "What's the sector rotation analysis?"
+Response: {"tool": "get_sector_rotation_analysis", "args": {"limit": 10}}
+
 REMEMBER: Only JSON for tool calls, natural language for final answers."""
 
 class FunctionCallingAgent:
@@ -169,6 +264,33 @@ class FunctionCallingAgent:
             "search_news_by_keywords": search_news_by_keywords,
             "get_market_news": get_market_news,
             "get_sector_news": get_sector_news,
+            "search_docs_auto": search_docs_auto,
+            # New comprehensive financial analysis tools
+            "get_latest_stock_prices": get_latest_stock_prices,
+            "get_stock_performance_analysis": get_stock_performance_analysis,
+            "get_highest_volume_stocks": get_highest_volume_stocks,
+            "get_stock_volatility_analysis": get_stock_volatility_analysis,
+            "get_moving_averages_analysis": get_moving_averages_analysis,
+            "get_sector_performance_analysis": get_sector_performance_analysis,
+            "get_all_time_highs_lows": get_all_time_highs_lows,
+            "get_company_details_with_stock": get_company_details_with_stock,
+            "get_companies_by_sector_detailed": get_companies_by_sector_detailed,
+            "get_companies_by_location_detailed": get_companies_by_location_detailed,
+            "get_newest_sp500_companies": get_newest_sp500_companies,
+            "get_highest_priced_stocks": get_highest_priced_stocks,
+            "get_latest_revenue_data": get_latest_revenue_data,
+            "get_company_assets_analysis": get_company_assets_analysis,
+            "get_profitability_metrics": get_profitability_metrics,
+            "get_cash_flow_analysis": get_cash_flow_analysis,
+            "get_debt_equity_analysis": get_debt_equity_analysis,
+            "get_latest_news_by_company": get_latest_news_by_company,
+            "get_news_by_sector_analysis": get_news_by_sector_analysis,
+            "get_most_active_news_sources": get_most_active_news_sources,
+            "get_recent_sp500_changes": get_recent_sp500_changes,
+            "get_companies_added_to_sp500": get_companies_added_to_sp500,
+            "get_companies_removed_from_sp500": get_companies_removed_from_sp500,
+            "get_stock_correlation_analysis": get_stock_correlation_analysis,
+            "get_sector_rotation_analysis": get_sector_rotation_analysis,
         }
     
     def call_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -309,8 +431,8 @@ class FunctionCallingAgent:
                             context_parts.append(f"• Headquarters: {location}")
                         
                         # SEC fact timeseries results
-                        elif tool_result.get("data_type") == "sec_fact_timeseries":
-                            data = tool_result["data"]
+                        elif result.get("data_type") == "sec_fact_timeseries":
+                            data = result["data"]
                             context_parts.append(f"SEC Fact Time Series ({len(data)} rows):")
                             for r in data[:10]:
                                 context_parts.append(
@@ -321,7 +443,7 @@ class FunctionCallingAgent:
                                 )
                         
                         # SEC latest fact results
-                        elif tool_result.get("data_type") == "sec_fact_latest":
+                        elif result.get("data_type") == "sec_fact_latest":
                             rows = tool_result["data"]
                             if rows:
                                 r = rows[0]
@@ -335,7 +457,7 @@ class FunctionCallingAgent:
                                 context_parts.append("No recent fact found.")
                         
                         # SEC available facts results
-                        elif tool_result.get("data_type") == "sec_available_facts":
+                        elif result.get("data_type") == "sec_available_facts":
                             data = tool_result["data"]
                             context_parts.append(f"Available SEC Facts ({len(data)} unique tag/units):")
                             for r in data[:15]:
@@ -345,7 +467,7 @@ class FunctionCallingAgent:
                                 )
                         
                         # SEC peers snapshot results
-                        elif tool_result.get("data_type") == "sec_peers_snapshot":
+                        elif result.get("data_type") == "sec_peers_snapshot":
                             data = tool_result["data"]
                             context_parts.append(f"SEC Peers Snapshot ({len(data)} rows):")
                             for r in data[:20]:
@@ -357,9 +479,9 @@ class FunctionCallingAgent:
                                 )
                         
                         # SEC smart search results
-                        elif tool_result.get("data_type") == "sec_smart_search":
+                        elif result.get("data_type") == "sec_smart_search":
                             data = tool_result["data"]
-                            search_params = tool_result.get("search_params", {})
+                            search_params = result.get("search_params", {})
                             context_parts.append(f"SEC Smart Search Results ({len(data)} facts found):")
                             context_parts.append(f"Search: {search_params.get('identifier')} - {search_params.get('search_term', 'all facts')}")
                             for r in data[:15]:
@@ -371,10 +493,10 @@ class FunctionCallingAgent:
                                 )
                         
                         # Stock price data results
-                        elif tool_result.get("data_type") == "stock_price_data":
-                            symbol = tool_result.get("symbol", "Unknown")
-                            price_data = tool_result.get("price_data", [])
-                            metrics = tool_result.get("performance_metrics", {})
+                        elif result.get("data_type") == "stock_price_data":
+                            symbol = result.get("symbol", "Unknown")
+                            price_data = result.get("price_data", [])
+                            metrics = result.get("performance_metrics", {})
                             context_parts.append(f"Stock Price Data for {symbol} ({len(price_data)} days):")
                             if metrics:
                                 context_parts.append(f"Latest Close: ${metrics.get('latest_close', 'N/A')}")
@@ -385,9 +507,9 @@ class FunctionCallingAgent:
                                 context_parts.append(f"• {r.get('date')}: O:{r.get('open')} H:{r.get('high')} L:{r.get('low')} C:{r.get('close')} V:{r.get('volume'):,}")
                         
                         # Stock price comparison results
-                        elif tool_result.get("data_type") == "stock_price_comparison":
-                            symbols = tool_result.get("symbols", [])
-                            comparison_data = tool_result.get("comparison_data", [])
+                        elif result.get("data_type") == "stock_price_comparison":
+                            symbols = result.get("symbols", [])
+                            comparison_data = result.get("comparison_data", [])
                             context_parts.append(f"Stock Price Comparison ({len(comparison_data)} stocks):")
                             for r in comparison_data:
                                 context_parts.append(
@@ -397,9 +519,9 @@ class FunctionCallingAgent:
                                 )
                         
                         # Stock performance analysis results
-                        elif tool_result.get("data_type") == "stock_performance_analysis":
-                            symbol = tool_result.get("symbol", "Unknown")
-                            metrics = tool_result.get("performance_metrics", {})
+                        elif result.get("data_type") == "stock_performance_analysis":
+                            symbol = result.get("symbol", "Unknown")
+                            metrics = result.get("performance_metrics", {})
                             context_parts.append(f"Stock Performance Analysis for {symbol}:")
                             context_parts.append(f"Latest Close: ${metrics.get('latest_close', 'N/A')}")
                             context_parts.append(f"Moving Averages: MA10=${metrics.get('latest_ma_10', 'N/A')}, MA30=${metrics.get('latest_ma_30', 'N/A')}")
@@ -408,9 +530,9 @@ class FunctionCallingAgent:
                             context_parts.append(f"Average Close: ${metrics.get('avg_close', 'N/A')}")
                         
                         # Sector stock performance results
-                        elif tool_result.get("data_type") == "sector_stock_performance":
-                            sector = tool_result.get("sector", "Unknown")
-                            sector_data = tool_result.get("sector_data", [])
+                        elif result.get("data_type") == "sector_stock_performance":
+                            sector = result.get("sector", "Unknown")
+                            sector_data = result.get("sector_data", [])
                             context_parts.append(f"Sector Stock Performance - {sector} ({len(sector_data)} stocks):")
                             for r in sector_data[:10]:
                                 context_parts.append(
@@ -420,9 +542,9 @@ class FunctionCallingAgent:
                                 )
                         
                         # High volume stocks results
-                        elif tool_result.get("data_type") == "high_volume_stocks":
-                            volume_data = tool_result.get("volume_data", [])
-                            days = tool_result.get("days_analyzed", 1)
+                        elif result.get("data_type") == "high_volume_stocks":
+                            volume_data = result.get("volume_data", [])
+                            days = result.get("days_analyzed", 1)
                             context_parts.append(f"High Volume Stocks (Last {days} day{'s' if days > 1 else ''}):")
                             for r in volume_data[:10]:
                                 context_parts.append(
@@ -432,11 +554,11 @@ class FunctionCallingAgent:
                                 )
                         
                         # Comprehensive stock analysis results
-                        elif tool_result.get("data_type") == "comprehensive_stock_analysis":
-                            symbol = tool_result.get("symbol", "Unknown")
-                            company_info = tool_result.get("company_info", {})
-                            price_history = tool_result.get("price_history", [])
-                            sec_facts = tool_result.get("recent_sec_facts", [])
+                        elif result.get("data_type") == "comprehensive_stock_analysis":
+                            symbol = result.get("symbol", "Unknown")
+                            company_info = result.get("company_info", {})
+                            price_history = result.get("price_history", [])
+                            sec_facts = result.get("recent_sec_facts", [])
                             context_parts.append(f"Comprehensive Analysis for {symbol}:")
                             context_parts.append(f"Company: {company_info.get('security', 'N/A')}")
                             context_parts.append(f"Sector: {company_info.get('gics_sector', 'N/A')}")
@@ -453,16 +575,16 @@ class FunctionCallingAgent:
                     tool_result = result  # Use result directly for new format
                     
                     # Stock historical analysis results
-                    if tool_result.get("data_type") == "stock_historical_analysis":
-                        symbol = tool_result.get("symbol", "Unknown")
-                        requested_start = tool_result.get("requested_start_year", "N/A")
-                        requested_end = tool_result.get("requested_end_year", "N/A")
-                        actual_start = tool_result.get("actual_start_date", "N/A")
-                        actual_end = tool_result.get("actual_end_date", "N/A")
-                        analysis_type = tool_result.get("analysis_type", "average")
-                        analysis_results = tool_result.get("analysis_results", {})
-                        total_records = tool_result.get("total_records", 0)
-                        data_availability = tool_result.get("data_availability", {})
+                    if result.get("data_type") == "stock_historical_analysis":
+                        symbol = result.get("symbol", "Unknown")
+                        requested_start = result.get("requested_start_year", "N/A")
+                        requested_end = result.get("requested_end_year", "N/A")
+                        actual_start = result.get("actual_start_date", "N/A")
+                        actual_end = result.get("actual_end_date", "N/A")
+                        analysis_type = result.get("analysis_type", "average")
+                        analysis_results = result.get("analysis_results", {})
+                        total_records = result.get("total_records", 0)
+                        data_availability = result.get("data_availability", {})
                         
                         context_parts.append(f"Historical Analysis for {symbol}:")
                         if requested_start != "N/A" and requested_end != "N/A":
@@ -493,11 +615,11 @@ class FunctionCallingAgent:
                             context_parts.append(f"Years Analyzed: {analysis_results.get('years_analyzed', 'N/A')}")
                     
                     # Stock extremes results
-                    elif tool_result.get("data_type") == "stock_extremes":
-                        symbol = tool_result.get("symbol", "Unknown")
-                        all_time_high = tool_result.get("all_time_high", {})
-                        all_time_low = tool_result.get("all_time_low", {})
-                        actual_period = tool_result.get("actual_data_period", {})
+                    elif result.get("data_type") == "stock_extremes":
+                        symbol = result.get("symbol", "Unknown")
+                        all_time_high = result.get("all_time_high", {})
+                        all_time_low = result.get("all_time_low", {})
+                        actual_period = result.get("actual_data_period", {})
                         
                         context_parts.append(f"Stock Extremes for {symbol}:")
                         if actual_period:
@@ -515,11 +637,11 @@ class FunctionCallingAgent:
                             context_parts.append(f"  - Volume: {all_time_low.get('volume', 'N/A'):,}")
                     
                     # Company news results
-                    elif tool_result.get("data_type") == "company_news":
-                        symbol = tool_result.get("symbol", "Unknown")
-                        articles = tool_result.get("news_articles", [])
-                        records_found = tool_result.get("records_found", 0)
-                        days_back = tool_result.get("days_back", 30)
+                    elif result.get("data_type") == "company_news":
+                        symbol = result.get("symbol", "Unknown")
+                        articles = result.get("news_articles", [])
+                        records_found = result.get("records_found", 0)
+                        days_back = result.get("days_back", 30)
                         
                         context_parts.append(f"Recent News for {symbol} (Last {days_back} days):")
                         context_parts.append(f"Found {records_found} news articles")
@@ -533,11 +655,11 @@ class FunctionCallingAgent:
                             context_parts.append("")
                     
                     # News search results
-                    elif tool_result.get("data_type") == "news_search":
-                        keywords = tool_result.get("keywords", "Unknown")
-                        articles = tool_result.get("news_articles", [])
-                        records_found = tool_result.get("records_found", 0)
-                        days_back = tool_result.get("days_back", 30)
+                    elif result.get("data_type") == "news_search":
+                        keywords = result.get("keywords", "Unknown")
+                        articles = result.get("news_articles", [])
+                        records_found = result.get("records_found", 0)
+                        days_back = result.get("days_back", 30)
                         
                         context_parts.append(f"News Search Results for '{keywords}' (Last {days_back} days):")
                         context_parts.append(f"Found {records_found} relevant articles")
@@ -551,12 +673,12 @@ class FunctionCallingAgent:
                             context_parts.append("")
                     
                     # Market news results
-                    elif tool_result.get("data_type") == "market_news":
-                        articles = tool_result.get("news_articles", [])
-                        records_found = tool_result.get("records_found", 0)
-                        unique_symbols = tool_result.get("unique_symbols", 0)
-                        unique_sources = tool_result.get("unique_sources", 0)
-                        days_back = tool_result.get("days_back", 7)
+                    elif result.get("data_type") == "market_news":
+                        articles = result.get("news_articles", [])
+                        records_found = result.get("records_found", 0)
+                        unique_symbols = result.get("unique_symbols", 0)
+                        unique_sources = result.get("unique_sources", 0)
+                        days_back = result.get("days_back", 7)
                         
                         context_parts.append(f"Latest Market News (Last {days_back} days):")
                         context_parts.append(f"Found {records_found} articles from {unique_symbols} companies and {unique_sources} sources")
@@ -570,13 +692,13 @@ class FunctionCallingAgent:
                             context_parts.append("")
                     
                     # Sector news results
-                    elif tool_result.get("data_type") == "sector_news":
-                        sector = tool_result.get("sector", "Unknown")
-                        articles = tool_result.get("news_articles", [])
-                        records_found = tool_result.get("records_found", 0)
-                        companies_in_sector = tool_result.get("companies_in_sector", 0)
-                        companies_with_news = tool_result.get("companies_with_news", 0)
-                        days_back = tool_result.get("days_back", 30)
+                    elif result.get("data_type") == "sector_news":
+                        sector = result.get("sector", "Unknown")
+                        articles = result.get("news_articles", [])
+                        records_found = result.get("records_found", 0)
+                        companies_in_sector = result.get("companies_in_sector", 0)
+                        companies_with_news = result.get("companies_with_news", 0)
+                        days_back = result.get("days_back", 30)
                         
                         context_parts.append(f"{sector} Sector News (Last {days_back} days):")
                         context_parts.append(f"Found {records_found} articles from {companies_with_news} companies (out of {companies_in_sector} total in sector)")
@@ -622,11 +744,16 @@ Keep it concise and informative."""
         except Exception as e:
             return f"Error composing response: {str(e)}"
     
-    def run(self, user_input: str) -> str:
+    def run(self, user_input: str, doc_context: Optional[str] = None, scoped_doc_ids: Optional[List[str]] = None) -> str:
         """Main orchestration loop: Router → Executor → Composer"""
+        # Build the user input with document context if available
+        full_user_input = user_input
+        if doc_context:
+            full_user_input = f"Document Context:\n{doc_context}\n\nUser Question: {user_input}"
+        
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input}
+            {"role": "user", "content": full_user_input}
         ]
         
         tool_results = []
@@ -638,7 +765,8 @@ Keep it concise and informative."""
             if router_response.get("type") == "error":
                 return f"Error: {router_response['content']}"
 
-            
+
+
             if router_response.get("type") == "text":
                 # No more tool calls needed, return the text response
                 return router_response["content"]

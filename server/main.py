@@ -511,7 +511,16 @@ async def ask(
     if current_gemini_model:
         # Use the new function calling agent for all queries
         try:
-            result = function_calling_agent.run(question)
+            # Get document context if documents are available
+            doc_context = None
+            if scoped_doc_ids:
+                # Search for relevant document content
+                latest_doc_id = scoped_doc_ids[-1] if scoped_doc_ids else None
+                doc_hits = search_docs_auto(question=question, k=k, doc_id=latest_doc_id).get("rows", [])
+                if doc_hits:
+                    doc_context = "\n\n".join([f"[{h.get('chunk_id','')}] {h.get('snippet','')}" for h in doc_hits])
+            
+            result = function_calling_agent.run(question, doc_context=doc_context, scoped_doc_ids=scoped_doc_ids)
             add_message(session_id, "assistant", result)
             
             return {

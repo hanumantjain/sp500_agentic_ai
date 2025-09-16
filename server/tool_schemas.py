@@ -650,5 +650,380 @@ OHLC_TOOL_SCHEMAS = [
                 {"tool": "get_sector_news", "args": {"sector": "Financials", "limit": 3, "days_back": 7}}
             ]
         }
+    },
+    {
+        "name": "get_latest_stock_prices",
+        "description": "Get the latest stock prices for all S&P 500 companies with company details",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_stock_performance_analysis",
+        "description": "Get stock performance analysis over specified period with percentage changes",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period_days": {
+                    "type": "integer",
+                    "description": "Number of days to analyze performance over",
+                    "default": 30
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_highest_volume_stocks",
+        "description": "Get stocks with highest trading volume for the latest trading day",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_stock_volatility_analysis",
+        "description": "Get stock volatility analysis with price statistics over specified period",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period_days": {
+                    "type": "integer",
+                    "description": "Number of days to analyze volatility over",
+                    "default": 90
+                },
+                "min_trading_days": {
+                    "type": "integer",
+                    "description": "Minimum number of trading days required",
+                    "default": 60
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_moving_averages_analysis",
+        "description": "Get moving averages analysis for stocks with current price vs moving averages",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ma_short": {
+                    "type": "integer",
+                    "description": "Short-term moving average period",
+                    "default": 20
+                },
+                "ma_long": {
+                    "type": "integer",
+                    "description": "Long-term moving average period",
+                    "default": 50
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_sector_performance_analysis",
+        "description": "Get sector performance analysis with average prices and volumes",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_all_time_highs_lows",
+        "description": "Get all-time highs and lows for stocks with dates when they occurred",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_company_details_with_stock",
+        "description": "Get comprehensive company details with latest stock information",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_companies_by_sector_detailed",
+        "description": "Get detailed breakdown of companies by sector with market statistics",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_companies_by_location_detailed",
+        "description": "Get detailed breakdown of companies by headquarters location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_newest_sp500_companies",
+        "description": "Get the newest companies added to the S&P 500 with current stock prices",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_highest_priced_stocks",
+        "description": "Get stocks with the highest current prices",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_latest_revenue_data",
+        "description": "Get the latest revenue data for S&P 500 companies from SEC filings",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_company_assets_analysis",
+        "description": "Get company assets analysis from SEC filings",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_profitability_metrics",
+        "description": "Get profitability metrics (Net Income, Operating Income, Gross Profit) from SEC filings",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_cash_flow_analysis",
+        "description": "Get cash flow analysis from SEC filings",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_debt_equity_analysis",
+        "description": "Get debt and equity analysis from SEC filings",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_latest_news_by_company",
+        "description": "Get the latest news for S&P 500 companies",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_news_by_sector_analysis",
+        "description": "Get news analysis by sector with company coverage",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_most_active_news_sources",
+        "description": "Get the most active news sources covering S&P 500 companies",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_recent_sp500_changes",
+        "description": "Get recent S&P 500 component changes (additions and removals)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_companies_added_to_sp500",
+        "description": "Get companies recently added to the S&P 500 with details",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_companies_removed_from_sp500",
+        "description": "Get companies recently removed from the S&P 500 with details",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_stock_correlation_analysis",
+        "description": "Get stock correlation analysis showing similar performing stocks",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_sector_rotation_analysis",
+        "description": "Get sector rotation analysis showing sector performance trends",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
     }
 ]

@@ -1,35 +1,44 @@
-Backend
-====================================
+# Data Engineering Pipeline
 
-What this directory contains
-- Shell runner for the data pipeline
-- Environment setup and dependency lock-in via `requirements.txt`
-- Entry point for running normalization from the command line
+S&P 500 data processing and ingestion pipeline.
 
-Setup
-------------------------------------
-Create and activate a virtual environment, then install dependencies:
+## Quick Start
 
 ```bash
+# Setup environment
 python -m venv sp500
-```
-
-```bash
 source sp500/bin/activate
-```
-
-```bash
 pip install -r requirements.txt
+
+# Run data normalization
+./run_data_normalization_sp500.sh
+
+# Setup database
+./setup_database.sh
+
+# Start Airflow
+./start_airflow.sh
 ```
 
-Run the data pipeline
-------------------------------------
-See detailed usage in the data pipeline README:
+## Shell Scripts
 
-- [data_pipeline/README.md](data_pipeline/README.md)
+| Script | Purpose |
+|--------|---------|
+| `run_data_normalization_sp500.sh` | Normalize S&P 500 OHLC data |
+| `run_data_normalisation_company_facts.sh` | Process company facts data |
+| `run_data_normalisation_submissions_facts.sh` | Process SEC submissions |
+| `setup_database.sh` | Initialize database tables |
+| `setup_database_submissions.sh` | Setup submissions tables |
+| `setup_airflow.sh` | Configure Airflow environment |
+| `start_airflow.sh` | Start Airflow webserver |
 
-Notes
-------------------------------------
-- Input directory: `../data/sp500_ohcl`
-- Output directory: `../data/normalised_data`
-- Full pipeline documentation: [data_pipeline/README.md](data_pipeline/README.md)
+## Directory Structure
+
+- `data_pipeline/` - Data processing scripts
+- `database/` - Database models and management
+- `requirements.txt` - Python dependencies
+
+## Documentation
+
+- [Data Pipeline](data_pipeline/README.md)
+- [Database](database/README.md)

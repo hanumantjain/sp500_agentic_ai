@@ -77,3 +77,6 @@ dmypy.json
 data/submissions_facts
 data/submissions_sec_docs
 data/submissionCIK
+data/normalised_data/normalized_sp500_data.csv
+data/submisissions_cik_accn_list.csv
+data/submisissions_cik_accn_list_cleaned.csv

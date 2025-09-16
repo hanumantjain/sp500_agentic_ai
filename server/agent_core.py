@@ -14,7 +14,7 @@ tools_by_tag = {}
 # --------------------- Tool registration ---------------------
 def register_tool(tool_name=None, description=None, parameters_override=None, terminal=False, tags=None):
     def decorator(func):
-        nonlocal tool_name, description
+        nonlocal tool_name, description, parameters_override
         tool_name = tool_name or func.__name__
         description = description or (func.__doc__ or "No description provided").strip()
 

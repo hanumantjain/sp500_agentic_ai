@@ -6,6 +6,7 @@ export default function Chat() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'typing'; content: string }[]>([])
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const handleSend = async () => {
@@ -31,6 +32,11 @@ export default function Chat() {
       const formData = new FormData()
       formData.append('question', trimmed)
       
+      // Add session_id if we have one
+      if (sessionId) {
+        formData.append('session_id', sessionId)
+      }
+      
       // Add files to FormData (server expects 'files' field name)
       filesToSend.forEach((file) => {
         formData.append('files', file)
@@ -42,6 +48,12 @@ export default function Chat() {
       })
       const data = await res.json().catch(async () => ({ reply: await res.text() }))
       const assistantText = res.ok ? (data.reply ?? JSON.stringify(data)) : (data.error || `Failed (status ${res.status}).`)
+      
+      // Update session_id if returned from server
+      if (res.ok && data.session_id && !sessionId) {
+        setSessionId(data.session_id)
+      }
+      
       setMessages(prev => {
         const firstTypingIndex = prev.findIndex(m => m.role === 'typing')
         if (firstTypingIndex === -1) return [...prev, { role: 'assistant', content: assistantText }]

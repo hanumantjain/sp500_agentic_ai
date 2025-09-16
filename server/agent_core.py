@@ -239,13 +239,13 @@ def generate_response(prompt):
         elif msg["role"] == "assistant":
             gemini_prompt += f"Assistant: {msg['content']}\n\n"
     
-    # Configure Gemini model
+    # Configure Gemini model with fresh API key
     gemini_key = os.getenv("GEMINI_API_KEY")
     if not gemini_key:
         return "GEMINI_API_KEY not configured"
     
     genai.configure(api_key=gemini_key)
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     try:
         if tools:

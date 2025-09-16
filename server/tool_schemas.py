@@ -376,3 +376,279 @@ def fail(msg, code="TOOL_ERROR", meta=None):
         "error": {"code": code, "message": msg},
         "meta": meta or {}
     }
+
+# --------------------- OHLC Stock Data Tool Schemas ---------------------
+
+OHLC_TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_price_data",
+            "description": "Get stock price data (OHLC) for a specific symbol with performance metrics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol (e.g., AAPL, MSFT)"},
+                    "days": {"type": "integer", "minimum": 1, "default": 30, "description": "Number of days of data to retrieve (data available from 1962-2025)"},
+                    "include_metrics": {"type": "boolean", "default": True, "description": "Include performance metrics calculation"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_stock_price_data", "args": {"symbol": "AAPL", "days": 30}},
+                {"tool": "get_stock_price_data", "args": {"symbol": "MSFT", "days": 7, "include_metrics": True}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_stock_prices",
+            "description": "Compare stock prices across multiple symbols with performance metrics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbols": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 10, "description": "List of stock symbols to compare"},
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Period for comparison"},
+                    "metric": {"type": "string", "enum": ["close", "volume", "high", "low"], "default": "close", "description": "Metric to compare"}
+                },
+                "required": ["symbols"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "compare_stock_prices", "args": {"symbols": ["AAPL", "MSFT", "GOOGL"]}},
+                {"tool": "compare_stock_prices", "args": {"symbols": ["TSLA", "NVDA"], "days": 7, "metric": "volume"}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_performance_analysis",
+            "description": "Get comprehensive stock performance analysis including volatility, moving averages, and trends.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol to analyze"},
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Analysis period in days"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_stock_performance_analysis", "args": {"symbol": "AAPL", "days": 30}},
+                {"tool": "get_stock_performance_analysis", "args": {"symbol": "TSLA", "days": 90}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_sector_stock_performance",
+            "description": "Get stock performance data for all companies in a specific sector.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sector": {"type": "string", "description": "GICS sector name (e.g., Information Technology, Health Care)"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10, "description": "Maximum number of stocks to return"},
+                    "sort_by": {"type": "string", "enum": ["market_cap", "price", "volume"], "default": "market_cap", "description": "Sort criteria"}
+                },
+                "required": ["sector"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_sector_stock_performance", "args": {"sector": "Information Technology", "limit": 10}},
+                {"tool": "get_sector_stock_performance", "args": {"sector": "Health Care", "limit": 20, "sort_by": "price"}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_high_volume_stocks",
+            "description": "Get stocks with highest trading volume for recent days.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "minimum": 1, "maximum": 30, "default": 1, "description": "Number of recent days to analyze"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20, "description": "Maximum number of stocks to return"},
+                    "min_volume": {"type": "integer", "minimum": 0, "description": "Minimum volume filter"}
+                },
+                "required": [],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_high_volume_stocks", "args": {"days": 1, "limit": 20}},
+                {"tool": "get_high_volume_stocks", "args": {"days": 3, "limit": 10, "min_volume": 10000000}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_comprehensive_analysis",
+            "description": "Get comprehensive analysis combining stock price data with company info and SEC data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol for comprehensive analysis"},
+                    "include_sec_data": {"type": "boolean", "default": True, "description": "Include recent SEC filing data"},
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Price history period"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_stock_comprehensive_analysis", "args": {"symbol": "AAPL", "include_sec_data": True}},
+                {"tool": "get_stock_comprehensive_analysis", "args": {"symbol": "MSFT", "days": 60, "include_sec_data": False}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_historical_analysis",
+            "description": "Get historical stock analysis for a specific symbol over a multi-year period.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol (e.g., AAPL, MSFT)"},
+                    "start_year": {"type": "integer", "minimum": 1962, "maximum": 2025, "description": "Starting year for analysis (optional, data available from 1962-2025)"},
+                    "end_year": {"type": "integer", "minimum": 1962, "maximum": 2025, "description": "Ending year for analysis (optional, data available from 1962-2025)"},
+                    "analysis_type": {"type": "string", "enum": ["average", "yearly", "performance"], "default": "average", "description": "Type of analysis to perform"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_stock_historical_analysis", "args": {"symbol": "AAPL", "start_year": 2012, "end_year": 2023, "analysis_type": "average"}},
+                {"tool": "get_stock_historical_analysis", "args": {"symbol": "MSFT", "start_year": 2020, "end_year": 2023, "analysis_type": "yearly"}},
+                {"tool": "get_stock_historical_analysis", "args": {"symbol": "TSLA", "start_year": 2015, "end_year": 2023, "analysis_type": "performance"}},
+                {"tool": "get_stock_historical_analysis", "args": {"symbol": "AAPL", "analysis_type": "average"}},
+                {"tool": "get_stock_historical_analysis", "args": {"symbol": "MSFT", "start_year": 2020}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_extremes",
+            "description": "Get all-time high and low prices for a specific symbol.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol (e.g., AAPL, MSFT)"},
+                    "start_year": {"type": "integer", "minimum": 1962, "maximum": 2025, "description": "Starting year for analysis (optional, data available from 1962-2025)"},
+                    "end_year": {"type": "integer", "minimum": 1962, "maximum": 2025, "description": "Ending year for analysis (optional, data available from 1962-2025)"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_stock_extremes", "args": {"symbol": "AAPL"}},
+                {"tool": "get_stock_extremes", "args": {"symbol": "MSFT", "start_year": 2020}},
+                {"tool": "get_stock_extremes", "args": {"symbol": "TSLA", "start_year": 2015, "end_year": 2023}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_company_news",
+            "description": "Get recent news articles for a specific company symbol with sources and URLs for citations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock symbol (e.g., AAPL, MSFT)"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 5, "description": "Number of news articles to retrieve"},
+                    "days_back": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Number of days back to search for news"}
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_company_news", "args": {"symbol": "AAPL", "limit": 5}},
+                {"tool": "get_company_news", "args": {"symbol": "MSFT", "limit": 3, "days_back": 7}},
+                {"tool": "get_company_news", "args": {"symbol": "TSLA", "days_back": 14}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_news_by_keywords",
+            "description": "Search news articles by keywords in headline or summary with sources and URLs for citations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "string", "description": "Keywords to search for in news headlines and summaries"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 5, "description": "Number of news articles to retrieve"},
+                    "days_back": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Number of days back to search for news"}
+                },
+                "required": ["keywords"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "search_news_by_keywords", "args": {"keywords": "Apple earnings", "limit": 5}},
+                {"tool": "search_news_by_keywords", "args": {"keywords": "Tesla stock split", "days_back": 14}},
+                {"tool": "search_news_by_keywords", "args": {"keywords": "Microsoft AI", "limit": 3, "days_back": 7}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_news",
+            "description": "Get recent market-wide news articles across all S&P 500 companies with sources and URLs for citations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10, "description": "Number of news articles to retrieve"},
+                    "days_back": {"type": "integer", "minimum": 1, "maximum": 365, "default": 7, "description": "Number of days back to search for news"}
+                },
+                "required": [],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_market_news", "args": {"limit": 10}},
+                {"tool": "get_market_news", "args": {"limit": 5, "days_back": 3}},
+                {"tool": "get_market_news", "args": {"days_back": 14}}
+            ]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_sector_news",
+            "description": "Get recent news for companies in a specific sector with sources and URLs for citations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sector": {"type": "string", "description": "Sector name (e.g., Technology, Healthcare, Financials)"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 5, "description": "Number of news articles to retrieve"},
+                    "days_back": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30, "description": "Number of days back to search for news"}
+                },
+                "required": ["sector"],
+                "additionalProperties": False,
+                "strict": True
+            },
+            "examples": [
+                {"tool": "get_sector_news", "args": {"sector": "Technology", "limit": 5}},
+                {"tool": "get_sector_news", "args": {"sector": "Healthcare", "days_back": 14}},
+                {"tool": "get_sector_news", "args": {"sector": "Financials", "limit": 3, "days_back": 7}}
+            ]
+        }
+    }
+]

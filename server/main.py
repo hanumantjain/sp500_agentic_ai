@@ -33,12 +33,17 @@ app.add_middleware(
 
 import os
 config = Config()
-gemini_key = os.getenv("GEMINI_API_KEY")
-if gemini_key:
-    genai.configure(api_key=gemini_key)
-    gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
-else:
-    gemini_model = None
+
+# Function to get fresh API key and configure Gemini
+def get_gemini_model():
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        genai.configure(api_key=gemini_key)
+        return genai.GenerativeModel('gemini-2.5-flash')
+    return None
+
+# Initialize with current API key
+gemini_model = get_gemini_model()
 
 # --- Unified agent personas ---
 # Financial advisor focused on S&P 500 using TiDB-backed data.
@@ -471,9 +476,14 @@ async def ask(
     # 6) Determine the best approach: Simple Greeting > Function Calling > RAG > SQL
     scoped_doc_ids = get_scoped_doc_ids(session_id)
     
-    # Check for simple greetings first
+    # Check for simple greetings first (exact word matches only)
     greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"]
-    is_greeting = any(greeting in question.lower() for greeting in greeting_words)
+    question_lower = question.lower()
+    # Use word boundaries to avoid false matches like "history" matching "hi"
+    is_greeting = any(f" {greeting} " in f" {question_lower} " or 
+                     question_lower.startswith(f"{greeting} ") or 
+                     question_lower.endswith(f" {greeting}") or
+                     question_lower == greeting for greeting in greeting_words)
     
     if is_greeting:
         greeting_response = "Hello! I'm your S&P 500 financial advisor. I can help you with:\n\n" \
@@ -497,7 +507,8 @@ async def ask(
     has_documents = bool(scoped_doc_ids) or bool(files) or ("files" in question.lower()) or ("doc:" in question.lower())
     
     # Priority: Function Calling > RAG (with docs) > Simple response
-    if gemini_key and gemini_model:
+    current_gemini_model = get_gemini_model()
+    if current_gemini_model:
         # Use the new function calling agent for all queries
         try:
             result = function_calling_agent.run(question)
@@ -568,7 +579,8 @@ async def ask(
         }
 
     # 10) Fallback to simple response for non-financial queries
-    if not gemini_key:
+    current_gemini_key = os.getenv("GEMINI_API_KEY")
+    if not current_gemini_key:
         simple_response = f"I received your message: '{question}'. I'm a financial advisor specializing in S&P 500 companies. " \
                          f"Please ask me about stocks, companies, sectors, or upload documents for analysis."
         add_message(session_id, "assistant", simple_response)

@@ -1156,3 +1156,900 @@ def get_sec_fact_peers_snapshot(
         return {"data_type": "sec_peers_snapshot", "results_found": len(rows), "data": rows, "sql": sql}
     except Exception as e:
         return {"error": f"Failed to get peers snapshot: {str(e)}", "sql": sql}
+
+# --------------------- OHLC Stock Data Tools ---------------------
+
+@register_tool(tags=["financial", "stock", "price"])
+def get_stock_price_data(
+    symbol: str,
+    days: int = 30,
+    include_metrics: bool = True
+) -> Dict[str, Any]:
+    """
+    Get stock price data (OHLC) for a specific symbol with optional performance metrics.
+    Data available from 1962-01-02 to 2025-09-09. For very large date ranges, consider using get_stock_historical_analysis.
+    """
+    try:
+        # Get price data - no hard limits, let the database handle it
+        sql = f"""
+            SELECT ticker, date, open, high, low, close, volume
+            FROM sp500_stooq_ohcl 
+            WHERE ticker = '{_esc(symbol.upper())}'
+            ORDER BY date DESC
+            LIMIT {max(1, days)}
+        """
+        price_data = run_query(sql)
+        
+        if not price_data:
+            # Check if symbol exists in our data
+            check_sql = f"SELECT MIN(date) as earliest, MAX(date) as latest FROM sp500_stooq_ohcl WHERE ticker = '{_esc(symbol.upper())}'"
+            availability = run_query(check_sql)
+            if availability:
+                return {
+                    "error": f"No recent data found for symbol {symbol}. Data available from {availability[0]['earliest']} to {availability[0]['latest']}",
+                    "data_availability": {
+                        "earliest_date": availability[0]['earliest'],
+                        "latest_date": availability[0]['latest']
+                    }
+                }
+            else:
+                return {"error": f"Symbol {symbol} not found in our database. Available symbols: 501 S&P 500 companies"}
+        
+        result = {
+            "data_type": "stock_price_data",
+            "symbol": symbol.upper(),
+            "days_requested": days,
+            "records_found": len(price_data),
+            "price_data": price_data,
+            "data_availability": {
+                "earliest_date": "1962-01-02",
+                "latest_date": "2025-09-09"
+            },
+            "sql": sql
+        }
+        
+        # Add performance metrics if requested
+        if include_metrics and len(price_data) > 1:
+            latest = price_data[0]
+            oldest = price_data[-1]
+            
+            # Calculate basic metrics
+            price_change = latest['close'] - oldest['close']
+            price_change_pct = (price_change / oldest['close']) * 100
+            
+            # Get min/max in period
+            min_price = min(row['low'] for row in price_data)
+            max_price = max(row['high'] for row in price_data)
+            avg_volume = sum(row['volume'] for row in price_data) / len(price_data)
+            
+            result["performance_metrics"] = {
+                "latest_close": latest['close'],
+                "period_start_close": oldest['close'],
+                "price_change": round(price_change, 2),
+                "price_change_pct": round(price_change_pct, 2),
+                "period_high": max_price,
+                "period_low": min_price,
+                "avg_volume": round(avg_volume, 0),
+                "latest_volume": latest['volume']
+            }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get stock price data: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "comparison"])
+def compare_stock_prices(
+    symbols: List[str],
+    days: int = 30,
+    metric: str = "close"
+) -> Dict[str, Any]:
+    """
+    Compare stock prices across multiple symbols.
+    """
+    if not symbols or len(symbols) > 10:
+        return {"error": "Please provide 1-10 stock symbols"}
+    
+    try:
+        symbols_str = "', '".join([_esc(s.upper()) for s in symbols])
+        
+        # Get latest price data for all symbols
+        sql = f"""
+            SELECT 
+                s1.ticker,
+                s1.date,
+                s1.close as latest_close,
+                s1.volume as latest_volume,
+                s2.avg_close_period,
+                ROUND(((s1.close - s2.avg_close_period) / s2.avg_close_period) * 100, 2) as change_pct
+            FROM sp500_stooq_ohcl s1
+            JOIN (
+                SELECT ticker, AVG(close) as avg_close_period
+                FROM sp500_stooq_ohcl 
+                WHERE ticker IN ('{symbols_str}')
+                  AND date >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+                GROUP BY ticker
+            ) s2 ON s1.ticker = s2.ticker
+            WHERE s1.ticker IN ('{symbols_str}')
+              AND s1.date = (
+                  SELECT MAX(date) 
+                  FROM sp500_stooq_ohcl s3 
+                  WHERE s3.ticker = s1.ticker
+              )
+            ORDER BY s1.close DESC
+        """
+        
+        comparison_data = run_query(sql)
+        
+        return {
+            "data_type": "stock_price_comparison",
+            "symbols": [s.upper() for s in symbols],
+            "days_period": days,
+            "comparison_metric": metric,
+            "records_found": len(comparison_data),
+            "comparison_data": comparison_data,
+            "sql": sql
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to compare stock prices: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "analysis"])
+def get_stock_performance_analysis(
+    symbol: str,
+    days: int = 30
+) -> Dict[str, Any]:
+    """
+    Get comprehensive stock performance analysis including volatility, moving averages, and trends.
+    """
+    try:
+        # Get price data with moving averages
+        sql = f"""
+            SELECT 
+                date,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                AVG(close) OVER (ORDER BY date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) as ma_10,
+                AVG(close) OVER (ORDER BY date ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) as ma_30
+            FROM sp500_stooq_ohcl 
+            WHERE ticker = '{_esc(symbol.upper())}'
+              AND date >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+            ORDER BY date DESC
+            LIMIT {min(max(1, days), 365)}
+        """
+        
+        price_data = run_query(sql)
+        
+        if not price_data:
+            return {"error": f"No price data found for symbol {symbol}"}
+        
+        # Calculate volatility metrics
+        closes = [row['close'] for row in price_data]
+        min_price = min(row['low'] for row in price_data)
+        max_price = max(row['high'] for row in price_data)
+        avg_close = sum(closes) / len(closes)
+        volatility_pct = ((max_price - min_price) / avg_close) * 100
+        
+        # Get latest moving averages
+        latest = price_data[0]
+        
+        return {
+            "data_type": "stock_performance_analysis",
+            "symbol": symbol.upper(),
+            "analysis_period_days": days,
+            "records_analyzed": len(price_data),
+            "performance_metrics": {
+                "latest_close": latest['close'],
+                "latest_ma_10": round(latest['ma_10'], 2),
+                "latest_ma_30": round(latest['ma_30'], 2),
+                "period_high": max_price,
+                "period_low": min_price,
+                "avg_close": round(avg_close, 2),
+                "volatility_pct": round(volatility_pct, 2),
+                "latest_volume": latest['volume']
+            },
+            "price_data": price_data[:10],  # Return first 10 days for trend analysis
+            "sql": sql
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to analyze stock performance: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "sector"])
+def get_sector_stock_performance(
+    sector: str,
+    limit: int = 10,
+    sort_by: str = "market_cap"
+) -> Dict[str, Any]:
+    """
+    Get stock performance data for all companies in a specific sector.
+    """
+    try:
+        # Get sector stocks with latest price data
+        sql = f"""
+            SELECT 
+                c.symbol,
+                c.security,
+                c.gics_sector,
+                s.close as latest_close,
+                s.volume as latest_volume,
+                s.date as latest_date,
+                ROUND(AVG(s.close) OVER (PARTITION BY c.symbol ORDER BY s.date ROWS BETWEEN 29 PRECEDING AND CURRENT ROW), 2) as avg_30d
+            FROM sp500_wik_list c
+            JOIN sp500_stooq_ohcl s ON c.symbol = s.ticker
+            WHERE c.gics_sector LIKE '%{_esc(sector)}%'
+              AND s.date = (
+                  SELECT MAX(date) 
+                  FROM sp500_stooq_ohcl s2 
+                  WHERE s2.ticker = c.symbol
+              )
+            ORDER BY s.close DESC
+            LIMIT {min(max(1, limit), 50)}
+        """
+        
+        sector_data = run_query(sql)
+        
+        return {
+            "data_type": "sector_stock_performance",
+            "sector": sector,
+            "stocks_found": len(sector_data),
+            "sort_by": sort_by,
+            "sector_data": sector_data,
+            "sql": sql
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to get sector performance: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "volume"])
+def get_high_volume_stocks(
+    days: int = 1,
+    limit: int = 20,
+    min_volume: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Get stocks with highest trading volume for recent days.
+    """
+    try:
+        volume_filter = f"AND volume >= {min_volume}" if min_volume else ""
+        
+        sql = f"""
+            SELECT 
+                s.ticker,
+                s.date,
+                s.close,
+                s.volume,
+                c.security,
+                c.gics_sector
+            FROM sp500_stooq_ohcl s
+            LEFT JOIN sp500_wik_list c ON s.ticker = c.symbol
+            WHERE s.date >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+              {volume_filter}
+            ORDER BY s.volume DESC
+            LIMIT {min(max(1, limit), 100)}
+        """
+        
+        volume_data = run_query(sql)
+        
+        return {
+            "data_type": "high_volume_stocks",
+            "days_analyzed": days,
+            "min_volume_filter": min_volume,
+            "stocks_found": len(volume_data),
+            "volume_data": volume_data,
+            "sql": sql
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to get high volume stocks: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "integrated"])
+def get_stock_comprehensive_analysis(
+    symbol: str,
+    include_sec_data: bool = True,
+    days: int = 30
+) -> Dict[str, Any]:
+    """
+    Get comprehensive analysis combining stock price data with company info and SEC data.
+    """
+    try:
+        # Get company info with latest stock data
+        sql = f"""
+            SELECT 
+                c.symbol,
+                c.security,
+                c.gics_sector,
+                c.gics_sub_ind,
+                c.headquarters_loc,
+                c.cik,
+                s.close as latest_close,
+                s.volume as latest_volume,
+                s.date as latest_date,
+                ROUND(AVG(s.close) OVER (ORDER BY s.date ROWS BETWEEN 29 PRECEDING AND CURRENT ROW), 2) as avg_30d
+            FROM sp500_wik_list c
+            JOIN sp500_stooq_ohcl s ON c.symbol = s.ticker
+            WHERE c.symbol = '{_esc(symbol.upper())}'
+              AND s.date = (
+                  SELECT MAX(date) 
+                  FROM sp500_stooq_ohcl s2 
+                  WHERE s2.ticker = c.symbol
+              )
+        """
+        
+        company_data = run_query(sql)
+        
+        if not company_data:
+            return {"error": f"No data found for symbol {symbol}"}
+        
+        result = {
+            "data_type": "comprehensive_stock_analysis",
+            "symbol": symbol.upper(),
+            "company_info": company_data[0],
+            "analysis_period_days": days
+        }
+        
+        # Get recent price history
+        price_sql = f"""
+            SELECT date, open, high, low, close, volume
+            FROM sp500_stooq_ohcl 
+            WHERE ticker = '{_esc(symbol.upper())}'
+            ORDER BY date DESC
+            LIMIT {days}
+        """
+        price_data = run_query(price_sql)
+        result["price_history"] = price_data
+        
+        # Get SEC data if requested
+        if include_sec_data:
+            sec_sql = f"""
+                SELECT bf.taxonomy, bf.tag, bf.unit, bf.val, bf.fy, bf.fp, bf.filed
+                FROM bronze_sec_facts bf
+                WHERE bf.cik = (SELECT cik FROM sp500_wik_list WHERE symbol = '{_esc(symbol.upper())}')
+                  AND bf.taxonomy = 'us-gaap'
+                  AND bf.tag IN ('RevenueFromContractWithCustomerExcludingAssessedTax', 'NetIncomeLoss', 'Assets')
+                ORDER BY bf.filed DESC
+                LIMIT 5
+            """
+            sec_data = run_query(sec_sql)
+            result["recent_sec_facts"] = sec_data
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get comprehensive analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "historical"])
+def get_stock_historical_analysis(
+    symbol: str,
+    start_year: int = None,
+    end_year: int = None,
+    analysis_type: str = "average"
+) -> Dict[str, Any]:
+    """
+    Get historical stock analysis for a specific symbol over a multi-year period.
+    Analysis types: 'average', 'yearly', 'performance'
+    Data available from 1962-01-02 to 2025-09-09. If no years specified, uses all available data.
+    """
+    try:
+        # Build flexible query based on available parameters
+        where_conditions = [f"ticker = '{_esc(symbol.upper())}'"]
+        
+        if start_year is not None:
+            where_conditions.append(f"YEAR(date) >= {start_year}")
+        if end_year is not None:
+            where_conditions.append(f"YEAR(date) <= {end_year}")
+        
+        sql = f"""
+            SELECT 
+                ticker, 
+                date, 
+                open, 
+                high, 
+                low, 
+                close, 
+                volume,
+                YEAR(date) as year
+            FROM sp500_stooq_ohcl 
+            WHERE {' AND '.join(where_conditions)}
+            ORDER BY date ASC
+        """
+        
+        historical_data = run_query(sql)
+        
+        if not historical_data:
+            # Check data availability for this symbol
+            check_sql = f"SELECT MIN(date) as earliest, MAX(date) as latest FROM sp500_stooq_ohcl WHERE ticker = '{_esc(symbol.upper())}'"
+            availability = run_query(check_sql)
+            if availability:
+                earliest = availability[0]['earliest']
+                latest = availability[0]['latest']
+                return {
+                    "error": f"No data found for {symbol} in the requested period. Data available from {earliest} to {latest}",
+                    "data_availability": {
+                        "earliest_date": earliest,
+                        "latest_date": latest
+                    }
+                }
+            else:
+                return {"error": f"Symbol {symbol} not found in our database. Available symbols: 501 S&P 500 companies"}
+        
+        # Determine actual date range from data
+        actual_start = historical_data[0]['date']
+        actual_end = historical_data[-1]['date']
+        
+        result = {
+            "data_type": "stock_historical_analysis",
+            "symbol": symbol.upper(),
+            "requested_start_year": start_year,
+            "requested_end_year": end_year,
+            "actual_start_date": actual_start,
+            "actual_end_date": actual_end,
+            "analysis_type": analysis_type,
+            "total_records": len(historical_data),
+            "data_availability": {
+                "earliest_date": "1962-01-02",
+                "latest_date": "2025-09-09"
+            },
+            "sql": sql
+        }
+        
+        if analysis_type == "average":
+            # Calculate overall average price for the period
+            avg_close = sum(row['close'] for row in historical_data) / len(historical_data)
+            avg_volume = sum(row['volume'] for row in historical_data) / len(historical_data)
+            min_price = min(row['low'] for row in historical_data)
+            max_price = max(row['high'] for row in historical_data)
+            
+            result["analysis_results"] = {
+                "average_close_price": round(avg_close, 2),
+                "average_volume": round(avg_volume, 0),
+                "period_low": min_price,
+                "period_high": max_price,
+                "price_range": round(max_price - min_price, 2),
+                "total_trading_days": len(historical_data)
+            }
+            
+        elif analysis_type == "yearly":
+            # Calculate yearly averages
+            yearly_data = {}
+            for row in historical_data:
+                year = row['year']
+                if year not in yearly_data:
+                    yearly_data[year] = []
+                yearly_data[year].append(row['close'])
+            
+            yearly_averages = {}
+            for year, prices in yearly_data.items():
+                yearly_averages[year] = {
+                    "average_price": round(sum(prices) / len(prices), 2),
+                    "trading_days": len(prices)
+                }
+            
+            result["analysis_results"] = yearly_averages
+            
+        elif analysis_type == "performance":
+            # Calculate performance metrics
+            first_price = historical_data[0]['close']
+            last_price = historical_data[-1]['close']
+            total_return = ((last_price - first_price) / first_price) * 100
+            
+            # Calculate volatility (standard deviation of daily returns)
+            daily_returns = []
+            for i in range(1, len(historical_data)):
+                prev_close = historical_data[i-1]['close']
+                curr_close = historical_data[i]['close']
+                daily_return = (curr_close - prev_close) / prev_close
+                daily_returns.append(daily_return)
+            
+            if daily_returns:
+                avg_return = sum(daily_returns) / len(daily_returns)
+                variance = sum((r - avg_return) ** 2 for r in daily_returns) / len(daily_returns)
+                volatility = (variance ** 0.5) * 100  # Annualized volatility approximation
+            else:
+                volatility = 0
+            
+            result["analysis_results"] = {
+                "starting_price": first_price,
+                "ending_price": last_price,
+                "total_return_percent": round(total_return, 2),
+                "annualized_volatility": round(volatility, 2),
+                "years_analyzed": end_year - start_year + 1
+            }
+        
+        # Add sample data for context
+        result["sample_data"] = historical_data[:10]  # First 10 records
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get historical analysis: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "stock", "extremes"])
+def get_stock_extremes(
+    symbol: str,
+    start_year: int = None,
+    end_year: int = None
+) -> Dict[str, Any]:
+    """
+    Get all-time high and low prices for a specific symbol.
+    Data available from 1962-01-02 to 2025-09-09. If no years specified, uses all available data.
+    """
+    try:
+        # Build flexible query based on available parameters
+        where_conditions = [f"ticker = '{_esc(symbol.upper())}'"]
+        
+        if start_year is not None:
+            where_conditions.append(f"YEAR(date) >= {start_year}")
+        if end_year is not None:
+            where_conditions.append(f"YEAR(date) <= {end_year}")
+        
+        # Get all-time high
+        high_sql = f"""
+            SELECT date, high, close, volume
+            FROM sp500_stooq_ohcl 
+            WHERE {' AND '.join(where_conditions)}
+            ORDER BY high DESC
+            LIMIT 1
+        """
+        
+        # Get all-time low
+        low_sql = f"""
+            SELECT date, low, close, volume
+            FROM sp500_stooq_ohcl 
+            WHERE {' AND '.join(where_conditions)}
+            ORDER BY low ASC
+            LIMIT 1
+        """
+        
+        high_result = run_query(high_sql)
+        low_result = run_query(low_sql)
+        
+        if not high_result or not low_result:
+            # Check data availability for this symbol
+            check_sql = f"SELECT MIN(date) as earliest, MAX(date) as latest FROM sp500_stooq_ohcl WHERE ticker = '{_esc(symbol.upper())}'"
+            availability = run_query(check_sql)
+            if availability:
+                earliest = availability[0]['earliest']
+                latest = availability[0]['latest']
+                return {
+                    "error": f"No data found for {symbol} in the requested period. Data available from {earliest} to {latest}",
+                    "data_availability": {
+                        "earliest_date": earliest,
+                        "latest_date": latest
+                    }
+                }
+            else:
+                return {"error": f"Symbol {symbol} not found in our database. Available symbols: 501 S&P 500 companies"}
+        
+        # Get data range
+        range_sql = f"""
+            SELECT MIN(date) as earliest, MAX(date) as latest, COUNT(*) as total_records
+            FROM sp500_stooq_ohcl 
+            WHERE {' AND '.join(where_conditions)}
+        """
+        range_result = run_query(range_sql)
+        
+        result = {
+            "data_type": "stock_extremes",
+            "symbol": symbol.upper(),
+            "requested_start_year": start_year,
+            "requested_end_year": end_year,
+            "data_availability": {
+                "earliest_date": "1962-01-02",
+                "latest_date": "2025-09-09"
+            },
+            "sql": f"High: {high_sql}, Low: {low_sql}"
+        }
+        
+        if range_result:
+            result["actual_data_period"] = {
+                "earliest_date": range_result[0]['earliest'],
+                "latest_date": range_result[0]['latest'],
+                "total_records": range_result[0]['total_records']
+            }
+        
+        # Format high result
+        if high_result:
+            high_data = high_result[0]
+            result["all_time_high"] = {
+                "date": high_data['date'],
+                "high_price": high_data['high'],
+                "close_price": high_data['close'],
+                "volume": high_data['volume']
+            }
+        
+        # Format low result
+        if low_result:
+            low_data = low_result[0]
+            result["all_time_low"] = {
+                "date": low_data['date'],
+                "low_price": low_data['low'],
+                "close_price": low_data['close'],
+                "volume": low_data['volume']
+            }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get stock extremes: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "company"])
+def get_company_news(
+    symbol: str,
+    limit: int = 5,
+    days_back: int = 30
+) -> Dict[str, Any]:
+    """
+    Get recent news articles for a specific company symbol.
+    Data available from 2020-03-27 to present. Returns headlines, summaries, sources, and URLs for citations.
+    """
+    try:
+        sql = f"""
+            SELECT 
+                symbol, 
+                datetime, 
+                headline, 
+                summary, 
+                source, 
+                url,
+                category
+            FROM sp500_finnhub_news 
+            WHERE symbol = '{_esc(symbol.upper())}'
+            AND datetime >= DATE_SUB(NOW(), INTERVAL {max(1, days_back)} DAY)
+            ORDER BY datetime DESC 
+            LIMIT {max(1, min(limit, 20))}
+        """
+        
+        news_data = run_query(sql)
+        
+        if not news_data:
+            # Check if symbol exists in news data
+            check_sql = f"SELECT COUNT(*) as count FROM sp500_finnhub_news WHERE symbol = '{_esc(symbol.upper())}'"
+            count_result = run_query(check_sql)
+            if count_result and count_result[0]['count'] > 0:
+                return {
+                    "error": f"No recent news found for {symbol} in the last {days_back} days. Try increasing the days_back parameter.",
+                    "data_availability": {
+                        "symbol": symbol.upper(),
+                        "has_historical_news": True,
+                        "suggestion": "Try with a larger days_back value (e.g., 90 or 365)"
+                    }
+                }
+            else:
+                return {"error": f"Symbol {symbol} not found in our news database. Available symbols: 500 S&P 500 companies"}
+        
+        result = {
+            "data_type": "company_news",
+            "symbol": symbol.upper(),
+            "days_back": days_back,
+            "limit": limit,
+            "records_found": len(news_data),
+            "news_articles": news_data,
+            "data_availability": {
+                "earliest_news": "2020-03-27",
+                "latest_news": "Present",
+                "total_sources": 20
+            },
+            "sql": sql
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get company news: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "search"])
+def search_news_by_keywords(
+    keywords: str,
+    limit: int = 5,
+    days_back: int = 30
+) -> Dict[str, Any]:
+    """
+    Search news articles by keywords in headline or summary.
+    Data available from 2020-03-27 to present. Returns relevant articles with sources and URLs for citations.
+    """
+    try:
+        # Clean and prepare keywords for search
+        clean_keywords = _esc(keywords.strip())
+        search_terms = clean_keywords.split()
+        
+        # Build search conditions
+        search_conditions = []
+        for term in search_terms:
+            search_conditions.append(f"(headline LIKE '%{term}%' OR summary LIKE '%{term}%')")
+        
+        where_clause = " AND ".join(search_conditions)
+        
+        sql = f"""
+            SELECT 
+                symbol, 
+                datetime, 
+                headline, 
+                summary, 
+                source, 
+                url,
+                category
+            FROM sp500_finnhub_news 
+            WHERE {where_clause}
+            AND datetime >= DATE_SUB(NOW(), INTERVAL {max(1, days_back)} DAY)
+            ORDER BY datetime DESC 
+            LIMIT {max(1, min(limit, 20))}
+        """
+        
+        news_data = run_query(sql)
+        
+        if not news_data:
+            return {
+                "error": f"No news found matching keywords '{keywords}' in the last {days_back} days. Try different keywords or increase days_back.",
+                "data_availability": {
+                    "keywords_searched": keywords,
+                    "days_back": days_back,
+                    "suggestion": "Try broader keywords or increase the search period"
+                }
+            }
+        
+        result = {
+            "data_type": "news_search",
+            "keywords": keywords,
+            "days_back": days_back,
+            "limit": limit,
+            "records_found": len(news_data),
+            "news_articles": news_data,
+            "data_availability": {
+                "earliest_news": "2020-03-27",
+                "latest_news": "Present",
+                "total_sources": 20
+            },
+            "sql": sql
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to search news: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "market"])
+def get_market_news(
+    limit: int = 10,
+    days_back: int = 7
+) -> Dict[str, Any]:
+    """
+    Get recent market-wide news articles across all S&P 500 companies.
+    Data available from 2020-03-27 to present. Returns latest market news with sources and URLs for citations.
+    """
+    try:
+        sql = f"""
+            SELECT 
+                symbol, 
+                datetime, 
+                headline, 
+                summary, 
+                source, 
+                url,
+                category
+            FROM sp500_finnhub_news 
+            WHERE datetime >= DATE_SUB(NOW(), INTERVAL {max(1, days_back)} DAY)
+            ORDER BY datetime DESC 
+            LIMIT {max(1, min(limit, 50))}
+        """
+        
+        news_data = run_query(sql)
+        
+        if not news_data:
+            return {
+                "error": f"No market news found in the last {days_back} days.",
+                "data_availability": {
+                    "days_back": days_back,
+                    "suggestion": "Try increasing the days_back parameter"
+                }
+            }
+        
+        # Get unique symbols and sources for context
+        unique_symbols = list(set(article['symbol'] for article in news_data))
+        unique_sources = list(set(article['source'] for article in news_data))
+        
+        result = {
+            "data_type": "market_news",
+            "days_back": days_back,
+            "limit": limit,
+            "records_found": len(news_data),
+            "unique_symbols": len(unique_symbols),
+            "unique_sources": len(unique_sources),
+            "news_articles": news_data,
+            "data_availability": {
+                "earliest_news": "2020-03-27",
+                "latest_news": "Present",
+                "total_sources": 20
+            },
+            "sql": sql
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get market news: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "news", "sector"])
+def get_sector_news(
+    sector: str,
+    limit: int = 5,
+    days_back: int = 30
+) -> Dict[str, Any]:
+    """
+    Get recent news for companies in a specific sector.
+    Data available from 2020-03-27 to present. Returns sector-specific news with sources and URLs for citations.
+    """
+    try:
+        # First get companies in the sector
+        sector_sql = f"""
+            SELECT DISTINCT symbol 
+            FROM sp500_wik_list 
+            WHERE gics_sector LIKE '%{_esc(sector)}%'
+        """
+        sector_companies = run_query(sector_sql)
+        
+        if not sector_companies:
+            return {"error": f"Sector '{sector}' not found. Available sectors: Technology, Healthcare, Financials, Consumer Discretionary, Industrials, Consumer Staples, Energy, Utilities, Real Estate, Materials, Communication Services"}
+        
+        # Get symbols for the sector
+        symbols = [company['symbol'] for company in sector_companies]
+        symbols_str = "', '".join([_esc(sym) for sym in symbols])
+        
+        sql = f"""
+            SELECT 
+                symbol, 
+                datetime, 
+                headline, 
+                summary, 
+                source, 
+                url,
+                category
+            FROM sp500_finnhub_news 
+            WHERE symbol IN ('{symbols_str}')
+            AND datetime >= DATE_SUB(NOW(), INTERVAL {max(1, days_back)} DAY)
+            ORDER BY datetime DESC 
+            LIMIT {max(1, min(limit, 20))}
+        """
+        
+        news_data = run_query(sql)
+        
+        if not news_data:
+            return {
+                "error": f"No recent news found for {sector} sector in the last {days_back} days. Try increasing the days_back parameter.",
+                "data_availability": {
+                    "sector": sector,
+                    "companies_in_sector": len(symbols),
+                    "days_back": days_back,
+                    "suggestion": "Try with a larger days_back value (e.g., 90 or 365)"
+                }
+            }
+        
+        # Get unique companies and sources
+        unique_companies = list(set(article['symbol'] for article in news_data))
+        unique_sources = list(set(article['source'] for article in news_data))
+        
+        result = {
+            "data_type": "sector_news",
+            "sector": sector,
+            "days_back": days_back,
+            "limit": limit,
+            "records_found": len(news_data),
+            "companies_in_sector": len(symbols),
+            "companies_with_news": len(unique_companies),
+            "unique_sources": len(unique_sources),
+            "news_articles": news_data,
+            "data_availability": {
+                "earliest_news": "2020-03-27",
+                "latest_news": "Present",
+                "total_sources": 20
+            },
+            "sql": sql
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get sector news: {str(e)}", "sql": sql}

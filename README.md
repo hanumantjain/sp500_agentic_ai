@@ -147,6 +147,22 @@ cd sp500_agentic_ai
 - **POST `/hello`** - Simple health check endpoint
   - Response: `{ "reply": "hello" }`
 
+### History Endpoints
+
+- **GET `/history`** - Get chat history and session overview
+  - Query params: `session_id` (optional)
+  - Without session_id: Returns recent sessions overview
+  - With session_id: Returns specific session history with messages and documents
+  - Response: `{ "session_id": "...", "messages": [...], "documents": [...], "total_messages": N, "total_documents": N }`
+
+- **GET `/session-docs/{session_id}`** - Get documents attached to a specific session
+  - Path param: `session_id` (required)
+  - Response: `{ "session_id": "...", "documents": [...], "total_documents": N }`
+
+- **DELETE `/delete-session/{session_id}`** - Delete a session and all its data
+  - Path param: `session_id` (required)
+  - Response: `{ "message": "Session deleted successfully", "session_id": "...", "deleted_rows": N }`
+
 ### File Upload
 
 The application supports uploading various file types:
@@ -215,6 +231,21 @@ Test with file upload:
 curl -X POST "http://localhost:8000/ask" \
   -F "question=What is the current price of AAPL?" \
   -F "files=@/path/to/your/file.pdf"
+```
+
+Test history endpoints:
+```bash
+# Get recent sessions overview
+curl -X GET "http://localhost:8000/history"
+
+# Get specific session history
+curl -X GET "http://localhost:8000/history?session_id=your-session-id"
+
+# Get documents for a specific session
+curl -X GET "http://localhost:8000/session-docs/your-session-id"
+
+# Delete a session
+curl -X DELETE "http://localhost:8000/delete-session/your-session-id"
 ```
 
 ## Troubleshooting

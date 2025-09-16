@@ -6,7 +6,8 @@ from db import run_query
 from tools import search_docs_auto
 from ingest.extract_text import compute_file_hash
 from config import Config
-from memory import new_session, add_message, get_recent_context, attach_docs, get_scoped_doc_ids
+from memory import new_session, add_message, get_recent_context, attach_docs, get_scoped_doc_ids, db
+import pymysql
 from function_calling_agent import agent as function_calling_agent
 from typing import List, Optional
 import os
@@ -243,6 +244,155 @@ class AskRequest(BaseModel):
 @app.post("/hello")
 async def hello():
     return {"reply": "hello"}
+
+@app.get("/history")
+async def get_history(session_id: Optional[str] = None):
+    """
+    Get chat history and session documents.
+    If session_id is provided, returns history for that specific session.
+    If no session_id, returns recent sessions overview.
+    """
+    try:
+        if session_id:
+            # Get specific session history
+            with db().cursor(pymysql.cursors.DictCursor) as cur:
+                # Get chat messages for the session
+                cur.execute("""
+                    SELECT role, content, created_at, tool_name 
+                    FROM chat_messages 
+                    WHERE session_id=%s 
+                    ORDER BY created_at ASC
+                """, (session_id,))
+                messages = cur.fetchall()
+                
+                # Get documents attached to this session (if documents table exists)
+                try:
+                    cur.execute("""
+                        SELECT sd.doc_id, d.filename, d.file_hash, d.created_at
+                        FROM session_docs sd
+                        JOIN documents d ON sd.doc_id = d.doc_id
+                        WHERE sd.session_id=%s
+                        ORDER BY d.created_at DESC
+                    """, (session_id,))
+                    documents = cur.fetchall()
+                except Exception:
+                    # If documents table doesn't exist, just get doc_ids from session_docs
+                    cur.execute("""
+                        SELECT doc_id as doc_id, doc_id as filename, doc_id as file_hash, NOW() as created_at
+                        FROM session_docs
+                        WHERE session_id=%s
+                    """, (session_id,))
+                    documents = cur.fetchall()
+                
+                # Get session info
+                cur.execute("""
+                    SELECT session_id, user_id, summary, created_at
+                    FROM conversations
+                    WHERE session_id=%s
+                """, (session_id,))
+                session_info = cur.fetchone()
+                
+                return {
+                    "session_id": session_id,
+                    "session_info": session_info,
+                    "messages": messages,
+                    "documents": documents,
+                    "total_messages": len(messages),
+                    "total_documents": len(documents)
+                }
+        else:
+            # Get recent sessions overview
+            with db().cursor(pymysql.cursors.DictCursor) as cur:
+                cur.execute("""
+                    SELECT c.session_id, c.user_id, c.summary, c.created_at,
+                           COUNT(cm.session_id) as message_count,
+                           COUNT(sd.doc_id) as document_count
+                    FROM conversations c
+                    LEFT JOIN chat_messages cm ON c.session_id = cm.session_id
+                    LEFT JOIN session_docs sd ON c.session_id = sd.session_id
+                    GROUP BY c.session_id
+                    ORDER BY c.created_at DESC
+                    LIMIT 20
+                """)
+                sessions = cur.fetchall()
+                
+                return {
+                    "sessions": sessions,
+                    "total_sessions": len(sessions)
+                }
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving history: {str(e)}")
+
+
+@app.get("/session-docs/{session_id}")
+async def get_session_documents(session_id: str):
+    """
+    Get all documents attached to a specific session from session_docs table.
+    """
+    try:
+        with db().cursor(pymysql.cursors.DictCursor) as cur:
+            try:
+                cur.execute("""
+                    SELECT sd.doc_id, d.filename, d.file_hash, d.file_size, d.content_type, 
+                           d.created_at, d.uploaded_by
+                    FROM session_docs sd
+                    JOIN documents d ON sd.doc_id = d.doc_id
+                    WHERE sd.session_id=%s
+                    ORDER BY d.created_at DESC
+                """, (session_id,))
+                documents = cur.fetchall()
+            except Exception:
+                # If documents table doesn't exist, just get doc_ids from session_docs
+                cur.execute("""
+                    SELECT doc_id as doc_id, doc_id as filename, doc_id as file_hash, 
+                           NULL as file_size, NULL as content_type, NOW() as created_at, NULL as uploaded_by
+                    FROM session_docs
+                    WHERE session_id=%s
+                """, (session_id,))
+                documents = cur.fetchall()
+            
+            return {
+                "session_id": session_id,
+                "documents": documents,
+                "total_documents": len(documents)
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving session documents: {str(e)}")
+
+
+@app.delete("/delete-session/{session_id}")
+async def delete_session(session_id: str):
+    """
+    Delete a session and all its associated data (messages, documents, etc.).
+    """
+    try:
+        with db().cursor() as cur:
+            # Delete session documents first (foreign key constraint)
+            cur.execute("DELETE FROM session_docs WHERE session_id=%s", (session_id,))
+            
+            # Delete chat messages
+            cur.execute("DELETE FROM chat_messages WHERE session_id=%s", (session_id,))
+            
+            # Delete the session itself
+            cur.execute("DELETE FROM conversations WHERE session_id=%s", (session_id,))
+            
+            # Check if any rows were affected
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            return {
+                "message": "Session deleted successfully",
+                "session_id": session_id,
+                "deleted_rows": cur.rowcount
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting session: {str(e)}")
+
 
 @app.post("/ask")
 async def ask(

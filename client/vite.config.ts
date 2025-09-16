@@ -15,6 +15,18 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/history': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/session-docs': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/delete-session': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

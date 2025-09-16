@@ -9,6 +9,49 @@ export default function Chat() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Listen for session selection and new chat events from Menu component
+  useEffect(() => {
+    const handleSessionSelected = (event: CustomEvent) => {
+      const { sessionId: newSessionId } = event.detail;
+      setSessionId(newSessionId);
+      loadSessionHistory(newSessionId);
+    };
+
+    const handleNewChat = () => {
+      setSessionId(null);
+      setMessages([]);
+    };
+
+    window.addEventListener('sessionSelected', handleSessionSelected as EventListener);
+    window.addEventListener('newChat', handleNewChat);
+    
+    return () => {
+      window.removeEventListener('sessionSelected', handleSessionSelected as EventListener);
+      window.removeEventListener('newChat', handleNewChat);
+    };
+  }, []);
+
+  const loadSessionHistory = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/history?session_id=${sessionId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      // Convert API messages to component format
+      const formattedMessages = data.messages.map((msg: any) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }));
+      
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error('Error loading session history:', error);
+      setMessages([{ role: 'assistant', content: 'Error loading chat history' }]);
+    }
+  };
   const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed && selectedFiles.length === 0) return

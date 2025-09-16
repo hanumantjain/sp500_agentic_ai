@@ -1,7 +1,7 @@
 # Core FastAPI and Web Framework
 fastapi==0.116.1
+uvicorn==0.35.0
 python-multipart==0.0.20
-mangum
 
 # Google Gemini and LLM Integration
 google-generativeai==0.8.3

@@ -416,7 +416,7 @@ async def ask(
     if not session_id:
         session_id = new_session(user_id=user_id)
 
-    # 2) Process uploaded files and capture doc_ids
+    # 2) Process uploaded files and capture verified doc_ids
     doc_ids_added = []
     processed_files = []
     
@@ -465,7 +465,7 @@ async def ask(
                 except Exception as e:
                     processed_files.append(f"❌ {file.filename} - error: {str(e)}")
 
-    # 3) Attach new docs to session
+    # 3) Attach new docs to session (no extra active doc tracking)
     attach_docs(session_id, doc_ids_added)
 
     # 4) Store user message
@@ -477,6 +477,7 @@ async def ask(
 
     # 6) Determine the best approach: Simple Greeting > Function Calling > RAG > SQL
     scoped_doc_ids = get_scoped_doc_ids(session_id)
+    active_doc_id = get_active_doc(session_id)
     
     # Check for simple greetings first (exact word matches only)
     greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"]
@@ -513,11 +514,10 @@ async def ask(
     if current_gemini_model:
         # Use the new function calling agent for all queries
         try:
-            # Get document context if documents are available
+            # Get document context using only the latest uploaded doc for this session
             doc_context = None
             if scoped_doc_ids:
-                # Search for relevant document content
-                latest_doc_id = scoped_doc_ids[-1] if scoped_doc_ids else None
+                latest_doc_id = scoped_doc_ids[-1]
                 doc_hits = search_docs_auto(question=question, k=k, doc_id=latest_doc_id).get("rows", [])
                 if doc_hits:
                     doc_context = "\n\n".join([f"[{h.get('chunk_id','')}] {h.get('snippet','')}" for h in doc_hits])

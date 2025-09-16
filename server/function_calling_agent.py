@@ -444,7 +444,7 @@ class FunctionCallingAgent:
                         
                         # SEC latest fact results
                         elif result.get("data_type") == "sec_fact_latest":
-                            rows = tool_result["data"]
+                            rows = result["data"]
                             if rows:
                                 r = rows[0]
                                 context_parts.append(
@@ -458,7 +458,7 @@ class FunctionCallingAgent:
                         
                         # SEC available facts results
                         elif result.get("data_type") == "sec_available_facts":
-                            data = tool_result["data"]
+                            data = result["data"]
                             context_parts.append(f"Available SEC Facts ({len(data)} unique tag/units):")
                             for r in data[:15]:
                                 context_parts.append(
@@ -468,7 +468,7 @@ class FunctionCallingAgent:
                         
                         # SEC peers snapshot results
                         elif result.get("data_type") == "sec_peers_snapshot":
-                            data = tool_result["data"]
+                            data = result["data"]
                             context_parts.append(f"SEC Peers Snapshot ({len(data)} rows):")
                             for r in data[:20]:
                                 context_parts.append(
@@ -480,7 +480,7 @@ class FunctionCallingAgent:
                         
                         # SEC smart search results
                         elif result.get("data_type") == "sec_smart_search":
-                            data = tool_result["data"]
+                            data = result["data"]
                             search_params = result.get("search_params", {})
                             context_parts.append(f"SEC Smart Search Results ({len(data)} facts found):")
                             context_parts.append(f"Search: {search_params.get('identifier')} - {search_params.get('search_term', 'all facts')}")
@@ -722,11 +722,27 @@ class FunctionCallingAgent:
 Data:
 {context}
 
-Format your response as:
-1. One-line takeaway at the top
-2. 3-5 bullet points with key information
-3. Use plain English and include numbers/percentages
-4. Mention sources briefly
+STRICT OUTPUT REQUIREMENTS:
+- Write in clean Markdown suitable for a web app.
+- Start with a bold one-line takeaway summarizing the answer.
+- Follow with 3-7 concise bullet points with actual numbers/percentages.
+- If numeric series are present (prices, returns, MAs, volatility), include a small Markdown table.
+- Never include placeholders like [insert ...] or TODOs. Always use actual values or omit the line.
+- If a metric is unavailable, omit it instead of writing N/A.
+- End with a short disclaimer: "This is informational, not financial advice."
+
+Formatting examples (adapt to the data available):
+- **Key Takeaway:** Microsoft gained 12.4% over the last year with neutral momentum.
+- **Performance**: 1Y total return 12.4%; 30D change 2.1%
+- **Moving Averages**: MA20 512.3; MA50 505.8; MA200 472.9 (golden cross on 2025-06-12)
+- **Volatility**: 20-day volatility 1.8%
+
+Optional table example:
+| Metric | Value |
+|---|---|
+| Latest Close | $498.41 |
+| 30D High | $538.00 |
+| 30D Low | $495.00 |
 
 Keep it concise and informative."""
 

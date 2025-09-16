@@ -10,6 +10,7 @@ __pycache__/
 .Python
 server/__pycache__/
 server/.venv/
+data_engg/sp500/
 *.egg-info/
 
 # Environment variables
@@ -17,6 +18,11 @@ server/.venv/
 .env.local
 .env.production
 .env.development
+.env.development.local
+.env.test.local
+.env.production.local
+.env.ssp
+.env.main
 server/.env
 
 # Build outputs
@@ -30,8 +36,13 @@ client/dist/
 *.swp
 *.swo
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
@@ -39,3 +50,33 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.tmp
+*.temp
+logs/
+temp/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# folder for data
+data/submissions_facts
+data/submissions_sec_docs
+data/submissionCIK
+data/normalised_data/normalized_sp500_data.csv
+data/submisissions_cik_accn_list.csv
+data/submisissions_cik_accn_list_cleaned.csv

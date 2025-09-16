@@ -1,0 +1,23 @@
+# Environment Configuration Template
+# Copy this file to .env and fill in your actual values
+
+# OpenAI Configuration
+# Get your API key from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# TiDB/MySQL Database Configuration
+# For TiDB Cloud, get these from your cluster dashboard
+TIDB_HOST=your-tidb-host.clusters.tidb-cloud.com
+TIDB_PORT=4000
+TIDB_USER=your-username
+TIDB_PASSWORD=your-password
+TIDB_DB_NAME=your-database-name
+
+# Optional: TLS Configuration
+# For TiDB Cloud, download the CA certificate from your cluster dashboard
+# and provide the path to it here
+CA_PATH=/path/to/ca-cert.pem
+
+# Development Settings (Optional)
+# DEBUG=true
+# LOG_LEVEL=info

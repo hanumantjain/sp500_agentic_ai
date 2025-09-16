@@ -79,9 +79,22 @@ else
 fi
 echo ""
 
+# 5. S&P 500 Corporate Actions
+echo -e "${BLUE}5. S&P 500 Corporate Actions Ingestion${NC}"
+echo "----------------------------------------"
+python sp500_corporate_actions_ingestion.py
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Corporate Actions ingestion completed${NC}"
+else
+    echo -e "${RED}✗ Corporate Actions ingestion failed${NC}"
+    exit 1
+fi
+echo ""
+
 echo -e "${GREEN}All S&P 500 data ingestion completed successfully!${NC}"
 echo -e "${BLUE}Summary:${NC}"
 echo -e "${BLUE}- Component Changes: ✓${NC}"
 echo -e "${BLUE}- Finnhub News: ✓${NC}"
 echo -e "${BLUE}- Stooq OHLC: ✓${NC}"
 echo -e "${BLUE}- Wiki List: ✓${NC}"
+echo -e "${BLUE}- Corporate Actions: ✓${NC}"

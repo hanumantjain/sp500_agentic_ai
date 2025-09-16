@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Date,
     Numeric,
+    DECIMAL,
     Text,
     DateTime,
     BigInteger,
@@ -207,6 +208,26 @@ class Sp500FinnhubNews(Base):
 
     def __repr__(self):
         return f"<Sp500FinnhubNews(symbol={self.symbol}, datetime={self.datetime}, headline={self.headline[:50]}...)>"
+
+
+class Sp500CorporateActions(Base):
+    """S&P 500 Corporate Actions Table"""
+
+    __tablename__ = "sp500_corporate_actions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(10), nullable=False)
+    event_type = Column(String(50), nullable=False)
+    ex_date = Column(Date, nullable=True)
+    record_date = Column(Date, nullable=True)
+    pay_date = Column(Date, nullable=True)
+    ratio = Column(String(50), nullable=True)
+    cash_amount = Column(DECIMAL(15, 6), nullable=True)
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<Sp500CorporateActions(id={self.id}, symbol={self.symbol}, ex_date={self.ex_date}, event_type={self.event_type})>"
 
 
 def create_specific_table(table_name: str):

@@ -45,11 +45,12 @@ chmod +x *.sh
 ```bash
 ./run_all_ingestion.sh
 ```
-**Populates 4 tables:**
+**Populates 5 tables:**
 - `selected_changes_sp500`: S&P 500 component changes data
 - `sp500_finnhub_news`: S&P 500 news data from Finnhub API
 - `sp500_stooq_ohcl`: S&P 500 OHLC stock price data
 - `sp500_wik_list`: S&P 500 company information and metadata
+- `sp500_corporate_actions`: S&P 500 corporate actions data (dividends, splits, etc.)
 
 ```bash
 cd data_engg

@@ -1,13 +1,13 @@
 from fastapi import FastAPI, HTTPException, Form, UploadFile, File
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
+import google.generativeai as genai
 from db import run_query
 from tools import search_docs_auto
 from ingest.extract_text import compute_file_hash
 from config import Config
 from memory import new_session, add_message, get_recent_context, attach_docs, get_scoped_doc_ids
-from agent_core import Agent, AgentFunctionCallingActionLanguage, PythonActionRegistry, Environment, Goal, Memory, generate_response
+from function_calling_agent import agent as function_calling_agent
 from typing import List, Optional
 import os
 import tempfile
@@ -32,8 +32,12 @@ app.add_middleware(
 
 import os
 config = Config()
-openai_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=openai_key) if openai_key else None
+gemini_key = os.getenv("GEMINI_API_KEY")
+if gemini_key:
+    genai.configure(api_key=gemini_key)
+    gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+else:
+    gemini_model = None
 
 # --- Unified agent personas ---
 # Financial advisor focused on S&P 500 using TiDB-backed data.
@@ -50,99 +54,188 @@ SYSTEM_SQL = (
     "using our TiDB schema. Return ONLY the SQL, no prose, no markdown fences."
 )
 
-SYSTEM_TOOL_CALLING = (
-    "You are a financial advisor specializing in S&P 500 companies. "
-    "You have access to various tools to analyze S&P 500 data, search documents, and provide financial insights. "
-    "Use the appropriate tools to answer user questions. When you have the information you need, provide a comprehensive response. "
-    "Always cite your sources and be specific about the data you're using."
-)
 
 # --------------------- Function Calling Setup ---------------------
 
-def create_financial_agent():
-    """Create a financial advisor agent with access to S&P 500 tools"""
-    goals = [
-        Goal(priority=1, name="financial_analysis", description="Provide accurate financial analysis of S&P 500 companies"),
-        Goal(priority=2, name="data_retrieval", description="Retrieve relevant financial data using available tools"),
-        Goal(priority=3, name="document_analysis", description="Analyze uploaded documents for financial insights")
-    ]
-    
-    # Create action registry with financial and document tools
-    action_registry = PythonActionRegistry(tags=["financial", "sp500", "vector", "docs", "search"])
-    environment = Environment()
-    agent_language = AgentFunctionCallingActionLanguage()
-    
-    return Agent(
-        goals=goals,
-        agent_language=agent_language,
-        action_registry=action_registry,
-        generate_response=generate_response,
-        environment=environment
-    )
-
-def handle_function_calling(question: str, session_id: str, scoped_doc_ids: List[str] = None) -> dict:
-    """Handle function calling with the financial agent"""
+def format_tool_results_for_user(question: str, tool_results: List[dict]) -> str:
+    """Format tool execution results into user-friendly text responses"""
     try:
-        # Create agent
-        agent = create_financial_agent()
+        response_parts = []
         
-        # Create memory with conversation context
-        memory = Memory()
-        
-        # Add recent conversation history
-        history = get_recent_context(session_id, limit=6)
-        for msg in history:
-            memory.add_memory({
-                "type": msg["role"],
-                "content": msg["content"]
-            })
-        
-        # Add context about available documents if any
-        if scoped_doc_ids:
-            memory.add_memory({
-                "type": "system",
-                "content": f"Available documents in this session: {', '.join(scoped_doc_ids)}"
-            })
-        
-        # Run the agent
-        result_memory = agent.run(question, memory=memory, max_iterations=3)
-        
-        # Extract the final response
-        assistant_messages = [m for m in result_memory.items if m["type"] == "assistant"]
-        if assistant_messages:
-            final_response = assistant_messages[-1]["content"]
-        else:
-            final_response = "I've analyzed your request using the available tools. Let me know if you need more specific information."
-        
-        # Extract tool execution results for sources
-        tool_results = [m for m in result_memory.items if m["type"] == "environment"]
-        sources = []
         for result in tool_results:
             try:
                 result_data = json.loads(result["content"])
                 if result_data.get("tool_executed") and "result" in result_data:
-                    # Extract relevant source information
                     tool_result = result_data["result"]
+                    
+                    # Handle different tool result types
                     if isinstance(tool_result, dict):
-                        if "sql" in tool_result:
-                            sources.append(f"Database query executed")
+                        # Company search results
+                        if "companies" in tool_result:
+                            companies = tool_result["companies"]
+                            if companies:
+                                response_parts.append(f"Here are the S&P 500 companies I found:")
+                                for i, company in enumerate(companies[:10], 1):  # Limit to 10
+                                    symbol = company.get('symbol', 'N/A')
+                                    name = company.get('security', 'N/A')
+                                    sector = company.get('gics_sector', 'N/A')
+                                    response_parts.append(f"{i}. {symbol} - {name} ({sector})")
+                            else:
+                                response_parts.append("No companies found matching your criteria.")
+                        
+                        # Sector breakdown results
+                        elif "sector_breakdown" in tool_result:
+                            breakdown = tool_result["sector_breakdown"]
+                            total = tool_result.get("total_companies", 0)
+                            response_parts.append(f"S&P 500 Sector Breakdown (Total: {total} companies):")
+                            for sector in breakdown[:10]:  # Limit to top 10
+                                name = sector.get('gics_sector', 'N/A')
+                                count = sector.get('company_count', 0)
+                                pct = sector.get('percentage', 0)
+                                response_parts.append(f"• {name}: {count} companies ({pct}%)")
+                        
+                        # Company details
+                        elif "company_info" in tool_result:
+                            info = tool_result["company_info"]
+                            symbol = info.get('symbol', 'N/A')
+                            name = info.get('security', 'N/A')
+                            sector = info.get('gics_sector', 'N/A')
+                            industry = info.get('gics_sub_ind', 'N/A')
+                            location = info.get('headquarters_loc', 'N/A')
+                            cik = info.get('cik', 'N/A')
+                            response_parts.append(f"Company Details for {symbol}:")
+                            response_parts.append(f"• Name: {name}")
+                            response_parts.append(f"• Sector: {sector}")
+                            response_parts.append(f"• Industry: {industry}")
+                            response_parts.append(f"• Headquarters: {location}")
+                            response_parts.append(f"• CIK: {cik}")
+                        
+                        # Stock price data
+                        elif "price_data" in tool_result:
+                            symbol = tool_result.get("symbol", "N/A")
+                            data_points = tool_result.get("data_points", 0)
+                            response_parts.append(f"Retrieved {data_points} price data points for {symbol}.")
+                        
+                        # Error handling
+                        elif "error" in tool_result:
+                            response_parts.append(f"Error: {tool_result['error']}")
+                        
+                        # Company comparison results
+                        elif "comparison_data" in tool_result:
+                            companies = tool_result["comparison_data"]
+                            symbols = tool_result.get("symbols_requested", [])
+                            response_parts.append(f"Company Comparison for {', '.join(symbols)}:")
+                            for company in companies:
+                                symbol = company.get('symbol', 'N/A')
+                                name = company.get('security', 'N/A')
+                                sector = company.get('gics_sector', 'N/A')
+                                response_parts.append(f"• {symbol} - {name} ({sector})")
+                        
+                        # Filtered companies results
+                        elif "filters_applied" in tool_result:
+                            companies = tool_result["companies"]
+                            filters = tool_result["filters_applied"]
+                            filter_desc = []
+                            for key, value in filters.items():
+                                if value:
+                                    filter_desc.append(f"{key}: {value}")
+                            
+                            response_parts.append(f"Companies matching criteria ({', '.join(filter_desc)}):")
+                            for i, company in enumerate(companies[:10], 1):
+                                symbol = company.get('symbol', 'N/A')
+                                name = company.get('security', 'N/A')
+                                sector = company.get('gics_sector', 'N/A')
+                                response_parts.append(f"{i}. {symbol} - {name} ({sector})")
+                        
+                        # Statistics results
+                        elif "total_companies" in tool_result:
+                            stats = tool_result
+                            response_parts.append("S&P 500 Statistics:")
+                            response_parts.append(f"• Total Companies: {stats.get('total_companies', 0)}")
+                            response_parts.append(f"• Total Sectors: {stats.get('total_sectors', 0)}")
+                            response_parts.append(f"• Total Sub-Industries: {stats.get('total_sub_industries', 0)}")
+                            response_parts.append(f"• Total Locations: {stats.get('total_locations', 0)}")
+                            if stats.get('oldest_company_founded'):
+                                response_parts.append(f"• Oldest Company Founded: {stats['oldest_company_founded']}")
+                            if stats.get('newest_company_founded'):
+                                response_parts.append(f"• Newest Company Founded: {stats['newest_company_founded']}")
+                        
+                        # Geographic distribution results
+                        elif "location_distribution" in tool_result:
+                            locations = tool_result["location_distribution"]
+                            response_parts.append("S&P 500 Geographic Distribution (Top Locations):")
+                            for location in locations[:10]:
+                                loc = location.get('headquarters_loc', 'N/A')
+                                count = location.get('company_count', 0)
+                                pct = location.get('percentage', 0)
+                                response_parts.append(f"• {loc}: {count} companies ({pct}%)")
+                        
+                        # Advanced search results
+                        elif "search_fields" in tool_result:
+                            companies = tool_result["companies"]
+                            query = tool_result.get("query", "")
+                            response_parts.append(f"Search Results for '{query}':")
+                            for i, company in enumerate(companies[:10], 1):
+                                symbol = company.get('symbol', 'N/A')
+                                name = company.get('security', 'N/A')
+                                sector = company.get('gics_sector', 'N/A')
+                                response_parts.append(f"{i}. {symbol} - {name} ({sector})")
+                        
+                        # Sector performance summary
+                        elif "sector_summary" in tool_result:
+                            sectors = tool_result["sector_summary"]
+                            response_parts.append("S&P 500 Sector Performance Summary:")
+                            for sector in sectors:
+                                name = sector.get('gics_sector', 'N/A')
+                                count = sector.get('company_count', 0)
+                                pct = sector.get('percentage', 0)
+                                sub_industries = sector.get('sub_industries_count', 0)
+                                response_parts.append(f"• {name}: {count} companies ({pct}%) - {sub_industries} sub-industries")
+                        
+                        # Index changes results
+                        elif "changes_found" in tool_result:
+                            companies = tool_result["companies"]
+                            year = tool_result.get("year_filter")
+                            year_text = f" in {year}" if year else " (Recent)"
+                            response_parts.append(f"S&P 500 Index Changes{year_text}:")
+                            for i, company in enumerate(companies[:10], 1):
+                                symbol = company.get('symbol', 'N/A')
+                                name = company.get('security', 'N/A')
+                                date_added = company.get('date_added', 'N/A')
+                                response_parts.append(f"{i}. {symbol} - {name} (Added: {date_added})")
+                        
+                        # Company relationships results
+                        elif "related_companies" in tool_result:
+                            target = tool_result.get("target_company", "")
+                            relationship = tool_result.get("relationship_type", "")
+                            companies = tool_result["related_companies"]
+                            response_parts.append(f"Companies related to {target} by {relationship}:")
+                            for i, company in enumerate(companies[:10], 1):
+                                symbol = company.get('symbol', 'N/A')
+                                name = company.get('security', 'N/A')
+                                sector = company.get('gics_sector', 'N/A')
+                                response_parts.append(f"{i}. {symbol} - {name} ({sector})")
+                        
+                        # Generic data results
                         elif "rows" in tool_result:
-                            sources.append(f"Retrieved {len(tool_result['rows'])} data points")
-            except:
-                pass
+                            rows = tool_result["rows"]
+                            response_parts.append(f"Retrieved {len(rows)} data records.")
+                    
+                    # Handle string results
+                    elif isinstance(tool_result, str):
+                        response_parts.append(tool_result)
+                        
+            except json.JSONDecodeError:
+                continue
         
-        return {
-            "reply": final_response,
-            "sources": sources,
-            "tool_calls_made": len(tool_results)
-        }
-        
+        if response_parts:
+            return "\n\n".join(response_parts)
+        else:
+            return "I've processed your request using the available tools. Let me know if you need more specific information."
+            
     except Exception as e:
-        return {
-            "reply": f"I encountered an error while processing your request: {str(e)}",
-            "sources": [],
-            "tool_calls_made": 0
-        }
+        return f"I've analyzed your request, but encountered an issue formatting the response: {str(e)}"
+
 
 class AskRequest(BaseModel):
     question: str
@@ -225,34 +318,53 @@ async def ask(
     history = get_recent_context(session_id, limit=6)
     history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history])
 
-    # 6) Determine the best approach: Function Calling, RAG, or SQL
+    # 6) Determine the best approach: Simple Greeting > Function Calling > RAG > SQL
     scoped_doc_ids = get_scoped_doc_ids(session_id)
     
-    # Check if this is a financial data query that would benefit from function calling
-    financial_keywords = ["stock", "price", "dividend", "split", "performance", "analysis", "symbol", "company", "sector", "industry"]
-    is_financial_query = any(keyword in question.lower() for keyword in financial_keywords)
+    # Check for simple greetings first
+    greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"]
+    is_greeting = any(greeting in question.lower() for greeting in greeting_words)
+    
+    if is_greeting:
+        greeting_response = "Hello! I'm your S&P 500 financial advisor. I can help you with:\n\n" \
+                          "• Company research and analysis\n" \
+                          "• Stock price and performance data\n" \
+                          "• Sector and industry breakdowns\n" \
+                          "• Document analysis from uploaded files\n" \
+                          "• SEC filings and regulatory data\n\n" \
+                          "What would you like to know about S&P 500 companies?"
+        
+        add_message(session_id, "assistant", greeting_response)
+        return {
+            "session_id": session_id,
+            "reply": greeting_response,
+            "files_received": len(files),
+            "processed_files": processed_files,
+            "method": "greeting"
+        }
     
     # Check if user has documents uploaded
     has_documents = bool(scoped_doc_ids) or bool(files) or ("files" in question.lower()) or ("doc:" in question.lower())
     
-    # Priority: Function Calling > RAG (with docs) > SQL fallback
-    if is_financial_query and openai_key and client:
-        # Use function calling for financial queries
+    # Priority: Function Calling > RAG (with docs) > Simple response
+    if gemini_key and gemini_model:
+        # Use the new function calling agent for all queries
         try:
-            result = handle_function_calling(question, session_id, scoped_doc_ids)
-            add_message(session_id, "assistant", result["reply"])
+            result = function_calling_agent.run(question)
+            add_message(session_id, "assistant", result)
             
             return {
                 "session_id": session_id,
-                "reply": result["reply"],
-                "sources": result["sources"],
-                "tool_calls_made": result["tool_calls_made"],
+                "reply": result,
+                "sources": ["S&P 500 Database"],
+                "tool_calls_made": 1,  # Simplified for now
                 "files_received": len(files),
                 "processed_files": processed_files,
                 "method": "function_calling"
             }
         except Exception as e:
             # Fall back to other methods if function calling fails
+            print(f"Function calling error: {e}")  # Debug output
             pass
     
     if has_documents:
@@ -269,7 +381,7 @@ async def ask(
         context_blocks = [f"[{h.get('chunk_id','')}] {h.get('snippet','')}" for h in hits]
         context = "\n\n".join(context_blocks) if context_blocks else "(no relevant documents found)"
 
-        if not openai_key or client is None:
+        if not gemini_key or gemini_model is None:
             return {
                 "session_id": session_id,
                 "reply": f"(mock) Context from uploaded documents:\n{context[:1000]}", 
@@ -278,20 +390,16 @@ async def ask(
                 "processed_files": processed_files
             }
 
-        # 8) Generate RAG response
-        rag_messages = [
-            {"role": "system", "content": SYSTEM_RAG},
-            {"role": "user", "content": f"Question: {question}\n\nContext from documents:\n{context}"}
-        ]
-        
+        # 8) Generate RAG response using Gemini
         try:
-            resp = client.chat.completions.create(model="gpt-4o-mini", messages=rag_messages, temperature=0.2)
-            answer = resp.choices[0].message.content or ""
+            prompt = f"{SYSTEM_RAG}\n\nQuestion: {question}\n\nContext from documents:\n{context}"
+            response = gemini_model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.2))
+            answer = response.text or ""
         except Exception as e:
             return {
                 "session_id": session_id,
                 "reply": f"(mock) Context from documents:\n{context[:1000]}", 
-                "note": f"OpenAI error: {str(e)}",
+                "note": f"Gemini error: {str(e)}",
                 "sources": [h.get("chunk_id") for h in hits],
                 "files_received": len(files),
                 "processed_files": processed_files
@@ -309,91 +417,32 @@ async def ask(
             "method": "rag"
         }
 
-    # 10) Fallback to SQL generation for S&P 500 data queries
-    if not openai_key:
+    # 10) Fallback to simple response for non-financial queries
+    if not gemini_key:
+        simple_response = f"I received your message: '{question}'. I'm a financial advisor specializing in S&P 500 companies. " \
+                         f"Please ask me about stocks, companies, sectors, or upload documents for analysis."
+        add_message(session_id, "assistant", simple_response)
         return {
             "session_id": session_id,
-            "reply": f"Received: {question}",
-            "note": "OPENAI_API_KEY not set; returning mock reply",
+            "reply": simple_response,
+            "note": "GEMINI_API_KEY not set; returning simple reply",
             "files_received": len(files),
-            "processed_files": processed_files
+            "processed_files": processed_files,
+            "method": "simple_fallback"
         }
 
-    # 11) Generate SQL query for S&P 500 data
-    full_question = question
-    if processed_files:
-        full_question += f"\n\nFile processing status:\n" + "\n".join(processed_files)
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_SQL},
-                {"role": "user", "content": f"Question: {full_question}"}
-            ],
-            temperature=0
-        )
-        content = response.choices[0].message.content or ""
-        
-        # Clean up SQL query
-        sql_query = content.strip()
-        if sql_query.startswith("```sql"):
-            sql_query = sql_query[6:]
-        if sql_query.startswith("```"):
-            sql_query = sql_query[3:]
-        if sql_query.endswith("```"):
-            sql_query = sql_query[:-3]
-        sql_query = sql_query.strip()
-        
-    except Exception as e:
-        return {
-            "session_id": session_id,
-            "reply": f"Received: {question}",
-            "note": f"OpenAI error: {str(e)}",
-            "files_received": len(files),
-            "processed_files": processed_files
-        }
-
-    # 12) Execute SQL query
-    if not all([
-        getattr(config, "tidb_host", None),
-        getattr(config, "tidb_port", None),
-        getattr(config, "tidb_user", None),
-        getattr(config, "tidb_password", None),
-        getattr(config, "tidb_db_name", None),
-    ]):
-        return {
-            "session_id": session_id,
-            "sql": sql_query, 
-            "results": [], 
-            "note": "DB connection not configured",
-            "files_received": len(files),
-            "processed_files": processed_files
-        }
-
-    try:
-        results = run_query(sql_query)
-        # Store the SQL response
-        sql_response = f"SQL Query: {sql_query}\nResults: {len(results)} rows returned"
-        add_message(session_id, "assistant", sql_response)
-        
-    except Exception as e:
-        return {
-            "session_id": session_id,
-            "sql": sql_query, 
-            "results": [], 
-            "note": f"DB error: {str(e)}",
-            "files_received": len(files),
-            "processed_files": processed_files
-        }
-
+    # 11) For non-financial queries, provide a helpful response
+    simple_response = f"I understand you're asking: '{question}'. As your S&P 500 financial advisor, " \
+                     f"I can help you with company research, stock analysis, sector breakdowns, and document analysis. " \
+                     f"Could you please ask a more specific question about S&P 500 companies, stocks, or financial data?"
+    
+    add_message(session_id, "assistant", simple_response)
     return {
         "session_id": session_id,
-        "sql": sql_query, 
-        "results": results,
+        "reply": simple_response,
         "files_received": len(files),
         "processed_files": processed_files,
-        "method": "sql"
+        "method": "simple_response"
     }
 
 # Run with: uvicorn main:app --reload --port 5000

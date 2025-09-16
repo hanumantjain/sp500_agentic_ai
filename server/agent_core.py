@@ -6,7 +6,7 @@ import inspect
 from dataclasses import dataclass, field
 from typing import List, Dict, Callable, Any, get_type_hints
 
-from litellm import completion
+import google.generativeai as genai
 
 tools = {}
 tools_by_tag = {}
@@ -153,24 +153,146 @@ class AgentFunctionCallingActionLanguage(AgentLanguage):
 
     def parse_response(self, response: str):
         try:
-            return json.loads(response)
-        except:
+            # Try to parse as JSON first
+            parsed = json.loads(response)
+            if isinstance(parsed, dict) and "tool" in parsed:
+                return parsed
+            else:
+                return {"tool": "terminate", "args": {"message": response}}
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to extract tool information from text
+            response_lower = response.lower()
+            
+        # Check for common tool patterns in the response
+        if "compare" in response_lower or "comparison" in response_lower:
+            # Try to extract company symbols from the response
+            import re
+            # Look for common company names and convert to symbols
+            company_mappings = {
+                "APPLE": "AAPL", "MICROSOFT": "MSFT", "GOOGLE": "GOOGL", "GOOGLEL": "GOOGL",
+                "AMAZON": "AMZN", "TESLA": "TSLA", "META": "META", "FACEBOOK": "META",
+                "NETFLIX": "NFLX", "NVIDIA": "NVDA", "INTEL": "INTC", "IBM": "IBM",
+                "ORACLE": "ORCL", "SALESFORCE": "CRM", "ADOBE": "ADBE", "CISCO": "CSCO"
+            }
+            
+            # Extract potential company names (2-10 characters, not common words)
+            words = re.findall(r'\b[A-Z]{2,10}\b', response.upper())
+            exclude_words = {"AND", "THE", "OR", "IN", "OF", "TO", "FOR", "WITH", "BY", "FROM"}
+            symbols = []
+            
+            for word in words:
+                if word not in exclude_words:
+                    # Check if it's a known company name
+                    if word in company_mappings:
+                        symbols.append(company_mappings[word])
+                    elif len(word) <= 5:  # Likely a ticker symbol
+                        symbols.append(word)
+            
+            if len(symbols) >= 2:
+                return {"tool": "compare_companies", "args": {"symbols": symbols[:5]}}
+            
+            if "top" in response_lower and ("stock" in response_lower or "company" in response_lower):
+                # Extract number if present
+                import re
+                numbers = re.findall(r'\d+', response)
+                limit = int(numbers[0]) if numbers else 10
+                return {"tool": "get_top_sp500_companies", "args": {"limit": limit}}
+            
+        if "sector" in response_lower or "industry" in response_lower:
+            # Try to identify sector
+            sector_mappings = {
+                "technology": "Information Technology",
+                "tech": "Information Technology", 
+                "healthcare": "Health Care",
+                "health": "Health Care",
+                "finance": "Financials",
+                "financial": "Financials",
+                "energy": "Energy",
+                "consumer": "Consumer Discretionary",
+                "industrial": "Industrials",
+                "materials": "Materials",
+                "utilities": "Utilities",
+                "real estate": "Real Estate",
+                "communication": "Communication Services",
+                "communications": "Communication Services"
+            }
+            
+            for keyword, sector_name in sector_mappings.items():
+                if keyword in response_lower:
+                    return {"tool": "get_companies_by_sector", "args": {"sector": sector_name, "limit": 10}}
+            
+            # Default fallback
             return {"tool": "terminate", "args": {"message": response}}
 
 # --------------------- LLM Integration ---------------------
 def generate_response(prompt):
     messages = prompt["messages"]
     tools = prompt.get("tools", [])
-    if not tools:
-        resp = completion(model="openai/gpt-4o", messages=messages, max_tokens=1024)
-        return resp.choices[0].message.content
-    else:
-        resp = completion(model="openai/gpt-4o", messages=messages, tools=tools, max_tokens=1024)
-        tool_calls = resp.choices[0].message.tool_calls
-        if tool_calls:
-            tool = tool_calls[0]
-            return json.dumps({"tool": tool.function.name, "args": json.loads(tool.function.arguments)})
-        return resp.choices[0].message.content
+    
+    # Convert messages to Gemini format
+    gemini_prompt = ""
+    for msg in messages:
+        if msg["role"] == "system":
+            gemini_prompt += f"System: {msg['content']}\n\n"
+        elif msg["role"] == "user":
+            gemini_prompt += f"User: {msg['content']}\n\n"
+        elif msg["role"] == "assistant":
+            gemini_prompt += f"Assistant: {msg['content']}\n\n"
+    
+    # Configure Gemini model
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        return "GEMINI_API_KEY not configured"
+    
+    genai.configure(api_key=gemini_key)
+    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    
+    try:
+        if tools:
+            # Enhanced function calling prompt for Gemini
+            tool_descriptions = "\n".join([f"- {tool['function']['name']}: {tool['function']['description']}" for tool in tools])
+            
+            # Create a more specific prompt for function calling
+            function_prompt = f"""{gemini_prompt}
+
+Available tools:
+{tool_descriptions}
+
+IMPORTANT: You must respond with ONLY a JSON object in this exact format:
+{{"tool": "tool_name", "args": {{"param1": "value1", "param2": "value2"}}}}
+
+Do not include any other text, explanations, or markdown. Just the JSON object.
+
+Examples:
+- For "compare Apple, Microsoft, Google": {{"tool": "compare_companies", "args": {{"symbols": ["AAPL", "MSFT", "GOOGL"]}}}}
+- For "top 10 stocks": {{"tool": "get_top_sp500_companies", "args": {{"limit": 10}}}}
+- For "technology companies": {{"tool": "get_companies_by_sector", "args": {{"sector": "Information Technology", "limit": 10}}}}
+
+Choose the most appropriate tool and respond with JSON only:"""
+            
+            response = model.generate_content(function_prompt, generation_config=genai.types.GenerationConfig(temperature=0.1))
+            content = response.text or ""
+            
+            # Clean up the response and try to extract JSON
+            content = content.strip()
+            
+            # Try to find JSON in the response
+            if content.startswith('{') and content.endswith('}'):
+                return content
+            elif '{' in content and '}' in content:
+                # Extract JSON from mixed content
+                start = content.find('{')
+                end = content.rfind('}') + 1
+                json_part = content[start:end]
+                return json_part
+            
+            # If no JSON found, return a default tool call
+            return '{"tool": "terminate", "args": {"message": "No valid tool call found"}}'
+        else:
+            response = model.generate_content(gemini_prompt, generation_config=genai.types.GenerationConfig(temperature=0.1))
+            return response.text or ""
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
 
 # --------------------- Agent ---------------------
 class Agent:

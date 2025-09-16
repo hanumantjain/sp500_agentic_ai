@@ -3,10 +3,8 @@ fastapi==0.116.1
 uvicorn==0.35.0
 python-multipart==0.0.20
 
-# OpenAI and LLM Integration
-openai==1.107.2
-litellm==1.77.1
-tiktoken==0.11.0
+# Google Gemini and LLM Integration
+google-generativeai==0.8.3
 
 # Database and ORM
 PyMySQL==1.1.2

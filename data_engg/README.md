@@ -16,6 +16,16 @@ source sp500/bin/activate
 pip install -r requirements.txt
 ```
 
+### Environment Configuration
+Copy the `.env.example` file to `.env` and update the values according to your setup:
+
+```bash
+cp .env.example .env
+```
+
+Then edit the `.env` file with your database configuration:
+
+
 ### Make shell scripts executable
 ```bash
 chmod +x *.sh

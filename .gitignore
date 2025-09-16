@@ -1,49 +1,44 @@
-# Virtual environments
-sp500/
-venv/
-env/
-.env
-.venv/
+# Dependencies
+node_modules/
+client/node_modules/
 
-# Python cache and compiled files
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+server/__pycache__/
+server/.venv/
 *.egg-info/
-.installed.cfg
-*.egg
 
-# IDE and editor files
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+server/.env
+
+# Build outputs
+dist/
+build/
+client/dist/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+# OS
 .DS_Store
 Thumbs.db
 
-# Data files (uncomment if you don't want to track large data files)
-# data/sp500_ohcl/
-# *.csv
-# *.txt
-# *.json
-
-# Logs and temporary files
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 *.tmp
 *.temp
 logs/
@@ -88,4 +83,3 @@ Thumbs.db
 data/submissions_facts
 data/submissions_sec_docs
 data/submissionCIK
-

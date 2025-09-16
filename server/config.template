@@ -1,7 +1,11 @@
 # Environment Configuration Template
 # Copy this file to .env and fill in your actual values
 
-# OpenAI Configuration
+# Google Gemini Configuration
+# Get your API key from: https://makersuite.google.com/app/apikey
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# OpenAI Configuration (Legacy - not used with Gemini)
 # Get your API key from: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-your-openai-api-key-here
 

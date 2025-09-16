@@ -26,8 +26,14 @@ engine = get_db_engine()
 Session = sessionmaker(bind=engine)
 
 
-def run_query(query: str):
+def run_query(query: str, params=None):
     with engine.connect() as conn:
-        result = conn.execute(text(query))
+        if params:
+            if isinstance(params, (list, tuple)):
+                result = conn.execute(text(query), params)
+            else:
+                result = conn.execute(text(query), [params])
+        else:
+            result = conn.execute(text(query))
         # SQLAlchemy Row -> dict for JSON serialization
         return [dict(row._mapping) for row in result]

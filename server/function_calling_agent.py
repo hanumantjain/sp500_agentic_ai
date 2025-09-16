@@ -21,7 +21,7 @@ from tools import (
     get_companies_by_sector, get_companies_by_location, get_sector_breakdown,
     get_sp500_statistics, search_companies_advanced, get_geographic_distribution,
     get_company_relationships, get_sec_fact_timeseries, get_latest_sec_fact,
-    list_company_available_facts, get_sec_fact_peers_snapshot
+    list_company_available_facts, get_sec_fact_peers_snapshot, get_sec_facts_smart_search
 )
 
 # Configure Gemini
@@ -54,6 +54,7 @@ Available tools and their parameters:
 - get_latest_sec_fact: {"tool": "get_latest_sec_fact", "args": {"identifier": "AAPL", "id_type": "symbol", "tag": "Revenues"}}
 - list_company_available_facts: {"tool": "list_company_available_facts", "args": {"identifier": "AAPL", "id_type": "symbol"}}
 - get_sec_fact_peers_snapshot: {"tool": "get_sec_fact_peers_snapshot", "args": {"identifiers": ["AAPL", "MSFT"], "tag": "Revenues"}}
+- get_sec_facts_smart_search: {"tool": "get_sec_facts_smart_search", "args": {"identifier": "AAPL", "search_term": "revenue", "form_type": "10-K"}}
 
 EXAMPLES:
 User: "compare Apple, Microsoft, and Google"
@@ -88,6 +89,7 @@ class FunctionCallingAgent:
             "get_latest_sec_fact": get_latest_sec_fact,
             "list_company_available_facts": list_company_available_facts,
             "get_sec_fact_peers_snapshot": get_sec_fact_peers_snapshot,
+            "get_sec_facts_smart_search": get_sec_facts_smart_search,
         }
     
     def call_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,6 +270,20 @@ class FunctionCallingAgent:
                                     f"{r.get('fy') or ''}{r.get('fp') or ''} "
                                     f"{'['+r.get('frame')+']' if r.get('frame') else ''} "
                                     f"= {r.get('val')} (filed {r.get('filed')})"
+                                )
+                        
+                        # SEC smart search results
+                        elif tool_result.get("data_type") == "sec_smart_search":
+                            data = tool_result["data"]
+                            search_params = tool_result.get("search_params", {})
+                            context_parts.append(f"SEC Smart Search Results ({len(data)} facts found):")
+                            context_parts.append(f"Search: {search_params.get('identifier')} - {search_params.get('search_term', 'all facts')}")
+                            for r in data[:15]:
+                                context_parts.append(
+                                    f"• {r.get('taxonomy')}/{r.get('tag')} {r.get('unit')} "
+                                    f"{r.get('fy') or ''}{r.get('fp') or ''} "
+                                    f"{'['+r.get('frame')+']' if r.get('frame') else ''} "
+                                    f"= {r.get('val')} ({r.get('form')} filed {r.get('filed')})"
                                 )
                     
                     sources.append("S&P 500 Database")

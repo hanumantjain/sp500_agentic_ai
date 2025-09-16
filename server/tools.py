@@ -871,19 +871,22 @@ def get_company_relationships(symbol: str, relationship_type: str = "sector") ->
 
 # --------------------- SEC Tools ---------------------
 
-def _company_where(id_type: str, identifier: str) -> Tuple[str, List[Any]]:
+def _company_where(id_type: str, identifier: str) -> str:
     """
     Helper: build WHERE for company identifier
     id_type: 'cik' or 'symbol'
     identifier: value of cik (10/13 chars as stored) or symbol (e.g., AAPL)
-    NOTE: If you later add an SP500 mapping table, update the 'symbol' branch to join/lookup CIKs.
+    Maps symbol to CIK using sp500_wik_list table
     """
     if id_type == "cik":
-        return "bf.cik = %s", [identifier]
+        # bronze_sec_facts stores CIK as CIK0000815097 format
+        if not identifier.startswith("CIK"):
+            # Convert numeric CIK to CIK format
+            identifier = f"CIK{identifier.zfill(10)}"
+        return f"bf.cik = '{_esc(identifier)}'"
     elif id_type == "symbol":
-        # Placeholder: expect you'll swap this to a JOIN when you add the mapping table.
-        # For now, assume you've normalized bronze_sec_facts.cik to be queryable via a helper or view.
-        return "bf.cik IN (SELECT cik FROM sp500_symbols WHERE symbol = %s)", [identifier]
+        # Map symbol to CIK using sp500_wik_list table
+        return f"bf.cik = (SELECT cik FROM sp500_wik_list WHERE symbol = '{_esc(identifier.upper())}')"
     else:
         raise ValueError("id_type must be 'cik' or 'symbol'")
 
@@ -905,34 +908,20 @@ def get_sec_fact_timeseries(
     Return a time-series of a single XBRL fact for a company.
     Maps to SEC companyfacts fields: val, fy, fp, start_date, end_date, frame, form, filed, accn.
     """
-    base = """
-        SELECT
-            bf.cik, bf.taxonomy, bf.tag, bf.unit, bf.val,
-            bf.fy, bf.fp, bf.start_date, bf.end_date,
-            bf.frame, bf.form, bf.filed, bf.accn
-        FROM bronze_sec_facts bf
-        WHERE {company_where}
-          AND bf.taxonomy = %s
-          AND bf.tag = %s
-    """
-    where_company, params = _company_where(id_type, identifier)
-    params += [taxonomy, tag]
-
+    where_company = _company_where(id_type, identifier)
+    
+    conditions = [where_company, f"bf.taxonomy = '{_esc(taxonomy)}'", f"bf.tag = '{_esc(tag)}'"]
+    
     if unit:
-        base += " AND bf.unit = %s"
-        params.append(unit)
+        conditions.append(f"bf.unit = '{_esc(unit)}'")
     if fy_from is not None:
-        base += " AND bf.fy >= %s"
-        params.append(fy_from)
+        conditions.append(f"bf.fy >= {fy_from}")
     if fy_to is not None:
-        base += " AND bf.fy <= %s"
-        params.append(fy_to)
+        conditions.append(f"bf.fy <= {fy_to}")
     if fp:
-        base += " AND bf.fp = %s"
-        params.append(fp)
+        conditions.append(f"bf.fp = '{_esc(fp)}'")
     if frame:
-        base += " AND bf.frame = %s"
-        params.append(frame)
+        conditions.append(f"bf.frame = '{_esc(frame)}'")
 
     order_sql = {
         "filed": "bf.filed DESC, bf.end_date DESC",
@@ -940,11 +929,19 @@ def get_sec_fact_timeseries(
         "fy_fp": "bf.fy DESC, bf.fp DESC, bf.filed DESC"
     }.get(order_by, "bf.filed DESC")
 
-    sql = base.format(company_where=where_company) + f" ORDER BY {order_sql} LIMIT %s"
-    params.append(min(max(1, limit), 2000))
+    sql = f"""
+        SELECT
+            bf.cik, bf.taxonomy, bf.tag, bf.unit, bf.val,
+            bf.fy, bf.fp, bf.start_date, bf.end_date,
+            bf.frame, bf.form, bf.filed, bf.accn
+        FROM bronze_sec_facts bf
+        WHERE {' AND '.join(conditions)}
+        ORDER BY {order_sql}
+        LIMIT {min(max(1, limit), 2000)}
+    """
 
     try:
-        rows = run_query(sql, tuple(params))
+        rows = run_query(sql)
         return {"data_type": "sec_fact_timeseries", "results_found": len(rows), "data": rows, "sql": sql}
     except Exception as e:
         return {"error": f"Failed to get time series: {str(e)}", "sql": sql}
@@ -960,7 +957,12 @@ def get_latest_sec_fact(
     """
     Return the most recently filed value for a company/tag (optionally unit).
     """
-    where_company, params = _company_where(id_type, identifier)
+    where_company = _company_where(id_type, identifier)
+    
+    conditions = [where_company, f"bf.taxonomy = '{_esc(taxonomy)}'", f"bf.tag = '{_esc(tag)}'"]
+    if unit:
+        conditions.append(f"bf.unit = '{_esc(unit)}'")
+    
     sql = f"""
         WITH cte AS (
           SELECT
@@ -969,18 +971,13 @@ def get_latest_sec_fact(
             bf.frame, bf.form, bf.filed, bf.accn,
             ROW_NUMBER() OVER (ORDER BY bf.filed DESC, bf.end_date DESC) rn
           FROM bronze_sec_facts bf
-          WHERE {where_company}
-            AND bf.taxonomy = %s
-            AND bf.tag = %s
-            {"AND bf.unit = %s" if unit else ""}
+          WHERE {' AND '.join(conditions)}
         )
         SELECT * FROM cte WHERE rn = 1
     """
-    params += [taxonomy, tag]
-    if unit:
-        params.append(unit)
+    
     try:
-        rows = run_query(sql, tuple(params))
+        rows = run_query(sql)
         return {"data_type": "sec_fact_latest", "results_found": len(rows), "data": rows, "sql": sql}
     except Exception as e:
         return {"error": f"Failed to get latest fact: {str(e)}", "sql": sql}
@@ -996,27 +993,91 @@ def list_company_available_facts(
     """
     List distinct (taxonomy, tag, unit) a company has disclosed. Optional tag filter (ILIKE).
     """
-    where_company, params = _company_where(id_type, identifier)
+    where_company = _company_where(id_type, identifier)
+    
+    conditions = [where_company]
+    if taxonomy:
+        conditions.append(f"bf.taxonomy = '{_esc(taxonomy)}'")
+    if like_tag:
+        conditions.append(f"bf.tag ILIKE '%{_esc(like_tag)}%'")
+    
     sql = f"""
         SELECT bf.taxonomy, bf.tag, bf.unit, COUNT(*) AS n, MAX(bf.filed) AS last_filed
         FROM bronze_sec_facts bf
-        WHERE {where_company}
-        {"AND bf.taxonomy = %s" if taxonomy else ""}
-        {"AND bf.tag ILIKE %s" if like_tag else ""}
+        WHERE {' AND '.join(conditions)}
         GROUP BY bf.taxonomy, bf.tag, bf.unit
         ORDER BY last_filed DESC, n DESC
-        LIMIT %s
+        LIMIT {min(max(1, limit), 2000)}
     """
-    if taxonomy:
-        params.append(taxonomy)
-    if like_tag:
-        params.append(f"%{like_tag}%")
-    params.append(min(max(1, limit), 2000))
+    
     try:
-        rows = run_query(sql, tuple(params))
+        rows = run_query(sql)
         return {"data_type": "sec_available_facts", "results_found": len(rows), "data": rows, "sql": sql}
     except Exception as e:
         return {"error": f"Failed to list facts: {str(e)}", "sql": sql}
+
+@register_tool(tags=["financial", "sec", "facts", "smart"])
+def get_sec_facts_smart_search(
+    identifier: str,
+    id_type: str = "symbol",
+    search_term: Optional[str] = None,
+    form_type: Optional[str] = None,
+    year: Optional[int] = None,
+    quarter: Optional[str] = None,
+    limit: int = 100
+) -> Dict[str, Any]:
+    """
+    Smart search for SEC facts with flexible parameters.
+    Can search by company, form type (10-K, 10-Q, 8-K), year, quarter, or specific terms.
+    """
+    where_company = _company_where(id_type, identifier)
+    
+    # Build dynamic WHERE clause
+    conditions = [where_company]
+    
+    if search_term:
+        conditions.append(f"(bf.tag ILIKE '%{_esc(search_term)}%' OR bf.taxonomy ILIKE '%{_esc(search_term)}%')")
+    
+    if form_type:
+        conditions.append(f"bf.form = '{_esc(form_type)}'")
+    
+    if year:
+        conditions.append(f"bf.fy = {year}")
+    
+    if quarter:
+        conditions.append(f"bf.fp = '{_esc(quarter)}'")
+    
+    where_clause = " AND ".join(conditions)
+    
+    sql = f"""
+        SELECT 
+            bf.cik, bf.taxonomy, bf.tag, bf.unit, bf.val,
+            bf.fy, bf.fp, bf.start_date, bf.end_date,
+            bf.frame, bf.form, bf.filed, bf.accn
+        FROM bronze_sec_facts bf
+        WHERE {where_clause}
+        ORDER BY bf.filed DESC, bf.end_date DESC
+        LIMIT {min(max(1, limit), 1000)}
+    """
+    
+    try:
+        rows = run_query(sql)
+        return {
+            "data_type": "sec_smart_search", 
+            "search_params": {
+                "identifier": identifier,
+                "id_type": id_type,
+                "search_term": search_term,
+                "form_type": form_type,
+                "year": year,
+                "quarter": quarter
+            },
+            "results_found": len(rows), 
+            "data": rows, 
+            "sql": sql
+        }
+    except Exception as e:
+        return {"error": f"Failed to search facts: {str(e)}", "sql": sql}
 
 @register_tool(tags=["financial", "sec", "facts", "peers"])
 def get_sec_fact_peers_snapshot(
@@ -1039,32 +1100,28 @@ def get_sec_fact_peers_snapshot(
     """
     if not identifiers:
         return {"error": "identifiers cannot be empty"}
-    # Build a temp table of companies via UNION ALL to keep it SQL-portable
-    placeholders = ", ".join(["%s"] * len(identifiers))
-    id_values = list(identifiers)
-
-    entity_sql, entity_params = _company_where(id_type, "{ID_PLACEHOLDER}")
-    # Replace a single %s placeholder; we'll expand per row
-    entity_sql = entity_sql.replace("%s", "{id_bind}")
-
-    filters = ["bf.taxonomy = %s", "bf.tag = %s"]
-    params: List[Any] = [taxonomy, tag]
+    
+    # Build company conditions for each identifier
+    company_conditions = []
+    for identifier in identifiers:
+        if id_type == "cik":
+            if not identifier.startswith("CIK"):
+                identifier = f"CIK{identifier.zfill(10)}"
+            company_conditions.append(f"bf.cik = '{_esc(identifier)}'")
+        else:  # symbol
+            company_conditions.append(f"bf.cik = (SELECT cik FROM sp500_wik_list WHERE symbol = '{_esc(identifier.upper())}')")
+    
+    company_predicate = " OR ".join(company_conditions)
+    
+    # Build filters
+    filters = [f"bf.taxonomy = '{_esc(taxonomy)}'", f"bf.tag = '{_esc(tag)}'"]
     if unit:
-        filters.append("bf.unit = %s")
-        params.append(unit)
+        filters.append(f"bf.unit = '{_esc(unit)}'")
     if period_selector == "frame" and frame:
-        filters.append("bf.frame = %s")
-        params.append(frame)
+        filters.append(f"bf.frame = '{_esc(frame)}'")
     if period_selector == "fy_fp" and fy is not None and fp:
-        filters.append("bf.fy = %s")
-        filters.append("bf.fp = %s")
-        params.extend([fy, fp])
-
-    where_union_parts = []
-    for _ in identifiers:
-        where_union_parts.append("(" + entity_sql.format(id_bind="%s") + ")")
-    company_predicate = " OR ".join(where_union_parts)
-    params = id_values + params  # identifiers first, then filters
+        filters.append(f"bf.fy = {fy}")
+        filters.append(f"bf.fp = '{_esc(fp)}'")
 
     base = f"""
       WITH base AS (
@@ -1081,13 +1138,13 @@ def get_sec_fact_peers_snapshot(
           AND {' AND '.join(filters)}
       )
     """
+    
     if period_selector == "latest":
-        sql = base + """
+        sql = base + f"""
           SELECT * FROM base
-          WHERE rn_latest <= %s
+          WHERE rn_latest <= {min(max(1, limit_per_company), 5)}
           ORDER BY filed DESC, end_date DESC
         """
-        params.append(min(max(1, limit_per_company), 5))
     else:
         sql = base + """
           SELECT * FROM base
@@ -1095,7 +1152,7 @@ def get_sec_fact_peers_snapshot(
         """
 
     try:
-        rows = run_query(sql, tuple(params))
+        rows = run_query(sql)
         return {"data_type": "sec_peers_snapshot", "results_found": len(rows), "data": rows, "sql": sql}
     except Exception as e:
         return {"error": f"Failed to get peers snapshot: {str(e)}", "sql": sql}

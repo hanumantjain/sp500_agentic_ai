@@ -333,6 +333,28 @@ TOOLS = [
             },
             "strict": True
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_sec_facts_smart_search",
+            "description": "Smart search for SEC facts with flexible parameters - can search by company, form type, year, quarter, or specific terms.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "identifier": {"type": "string", "description": "Company symbol or CIK"},
+                    "id_type": {"type": "string", "enum": ["cik", "symbol"], "default": "symbol"},
+                    "search_term": {"type": "string", "description": "Search term for tags or taxonomy (e.g., 'revenue', 'assets')"},
+                    "form_type": {"type": "string", "description": "SEC form type (e.g., '10-K', '10-Q', '8-K')"},
+                    "year": {"type": "integer", "description": "Fiscal year"},
+                    "quarter": {"type": "string", "description": "Quarter (e.g., 'Q1', 'Q2', 'Q3', 'FY')"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}
+                },
+                "required": ["identifier"],
+                "additionalProperties": False
+            },
+            "strict": True
+        }
     }
 ]
 

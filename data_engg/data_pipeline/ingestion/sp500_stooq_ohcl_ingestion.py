@@ -20,7 +20,7 @@ import time
 
 # Add parent directories to path for imports
 current_dir = Path(__file__).parent.absolute()
-project_root = current_dir.parent.parent  # Go up to backend/
+project_root = current_dir.parent.parent  # Go up to data_engg/
 sys.path.insert(0, str(project_root))
 
 try:

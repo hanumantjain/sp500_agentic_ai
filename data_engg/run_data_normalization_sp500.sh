@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to run the complete S&P 500 data normalization pipeline from backend directory
+# Script to run the complete S&P 500 data normalization pipeline from data_engg directory
 # This script extracts file names and normalizes all S&P 500 data with required columns
 # Usage: ./run_data_normalization.sh [start_date] [end_date]
 # Example: ./run_data_normalization.sh "2020-01-01" "2023-12-31"
@@ -8,7 +8,7 @@
 echo "Starting S&P 500 Complete Data Pipeline..."
 echo "=========================================="
 
-# Navigate to the backend directory (where this script is located)
+# Navigate to the data_engg directory (where this script is located)
 cd "$(dirname "$0")"
 
 # Check if Python is available

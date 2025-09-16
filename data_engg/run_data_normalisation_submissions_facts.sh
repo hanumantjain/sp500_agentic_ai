@@ -11,7 +11,7 @@ chmod +x "$0"
 echo "Starting CIK Submissions File Copy Pipeline..."
 echo "============================================="
 
-# Navigate to the backend directory (where this script is located)
+# Navigate to the data_engg directory (where this script is located)
 cd "$(dirname "$0")"
 
 # Check if Python is available

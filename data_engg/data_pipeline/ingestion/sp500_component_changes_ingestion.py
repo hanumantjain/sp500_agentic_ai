@@ -8,8 +8,8 @@ from datetime import datetime
 
 # Add parent directories to path for imports - system independent
 current_dir = Path(__file__).parent.absolute()
-backend_root = current_dir.parent.parent  # Go up to backend/
-sys.path.insert(0, str(backend_root))
+data_engg_root = current_dir.parent.parent  # Go up to data_engg/
+sys.path.insert(0, str(data_engg_root))
 
 try:
     from database.config.config import Config

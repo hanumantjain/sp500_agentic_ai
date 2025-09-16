@@ -12,10 +12,10 @@ import os
 import sys
 from pathlib import Path
 
-# Add backend directory to Python path for imports
-backend_root = Path(__file__).parent.parent.parent.parent.parent
-if str(backend_root) not in sys.path:
-    sys.path.insert(0, str(backend_root))
+# Add data_engg directory to Python path for imports
+data_engg_root = Path(__file__).parent.parent.parent.parent.parent
+if str(data_engg_root) not in sys.path:
+    sys.path.insert(0, str(data_engg_root))
 
 # Default arguments for the DAG
 default_args = {

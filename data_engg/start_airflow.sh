@@ -73,8 +73,20 @@ echo -e "${BLUE}Airflow Home: $AIRFLOW_HOME${NC}"
 echo -e "${BLUE}DAGs Folder: $AIRFLOW_HOME/dags${NC}"
 echo ""
 
+# Initialize database if needed (non-interactive)
+echo -e "${YELLOW}Initializing Airflow database...${NC}"
+echo "y" | airflow db init || true
+
+# Start Airflow scheduler in background
+echo -e "${GREEN}Starting Airflow scheduler...${NC}"
+nohup airflow scheduler > scheduler.log 2>&1 &
+SCHEDULER_PID=$!
+
+# Wait a moment for scheduler to start
+sleep 2
+
 # Start webserver in background
-airflow webserver --port 8080 &
+nohup airflow webserver --port 8080 > webserver.log 2>&1 &
 WEBSERVER_PID=$!
 
 # Wait a moment for startup
@@ -93,6 +105,7 @@ if curl -s http://localhost:8080 > /dev/null 2>&1; then
     echo -e "${BLUE}To stop Airflow: kill $SCHEDULER_PID $WEBSERVER_PID${NC}"
     echo -e "${BLUE}Scheduler PID: $SCHEDULER_PID${NC}"
     echo -e "${BLUE}Webserver PID: $WEBSERVER_PID${NC}"
+    echo -e "${BLUE}Logs: scheduler.log and webserver.log${NC}"
 else
     echo -e "${RED}Failed to start Airflow webserver${NC}"
     echo -e "${YELLOW}Check the logs above for error details${NC}"

@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# SP500 Agentic AI - Database Setup Script (Facts Tables)
-# This script sets up the SEC facts database tables using Alembic migrations
-# Tables: bronze_sec_facts, bronze_sec_facts_dict
+# SP500 Agentic AI - Database Setup Script
+# This script drops all existing tables and creates new ones using create_tables.py
 
 set -e  # Exit on any error
 
@@ -13,11 +12,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}SP500 Agentic AI - Database Setup (Facts)${NC}"
+echo -e "${BLUE}SP500 Agentic AI - Database Setup${NC}"
 echo "================================================"
-echo -e "${YELLOW}Setting up SEC Facts tables:${NC}"
+echo -e "${YELLOW}This will DROP ALL existing tables and create new ones${NC}"
+echo -e "${YELLOW}Tables to be created:${NC}"
 echo "  - bronze_sec_facts"
 echo "  - bronze_sec_facts_dict"
+echo "  - bronze_sec_submissions"
+echo "  - bronze_sec_submissions_raw"
+echo "  - selected_changes_sp500"
+echo "  - sp500_finnhub_news"
+echo "  - sp500_stooq_ohcl"
+echo "  - sp500_wik_list"
 echo
 
 # Get the script directory
@@ -35,15 +41,18 @@ fi
 echo -e "${YELLOW}Activating virtual environment...${NC}"
 source "$VENV_DIR/bin/activate"
 
-# Run the Python setup script for facts tables
-echo -e "${YELLOW}Running facts database setup...${NC}"
-python3 setup_database.py --type facts
+# Navigate to database directory
+cd "$SCRIPT_DIR/database"
+
+# Drop all existing tables and create new ones
+echo -e "${YELLOW}Dropping all existing tables and creating new ones...${NC}"
+echo "yes" | python3 create_tables.py --drop-all --create
 
 if [ $? -eq 0 ]; then
     echo
-    echo -e "${GREEN}Facts database setup completed successfully!${NC}"
-    echo -e "${GREEN}Tables ready: bronze_sec_facts, bronze_sec_facts_dict${NC}"
+    echo -e "${GREEN}Database setup completed successfully!${NC}"
+    echo -e "${GREEN}All tables have been dropped and recreated${NC}"
 else
-    echo -e "${RED}Facts database setup failed!${NC}"
+    echo -e "${RED}Database setup failed!${NC}"
     exit 1
 fi

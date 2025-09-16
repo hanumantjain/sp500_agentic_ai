@@ -6,6 +6,14 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import the project's SQLAlchemy engine and metadata
+import sys
+from pathlib import Path
+
+# Add parent directories to path for imports - system independent
+current_dir = Path(__file__).parent.absolute()
+data_engg_root = current_dir.parent.parent.parent  # Go up to data_engg/
+sys.path.insert(0, str(data_engg_root))
+
 from database.db_connection import engine
 from database.models import Base
 
